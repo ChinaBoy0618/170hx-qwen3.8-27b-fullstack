@@ -1,0 +1,86 @@
+--- http_server.py.base	2026-09-04 05:22:46.000000000 +0800
++++ http_server.py	2026-09-11 17:44:04.803492310 +0800
+@@ -230,10 +230,79 @@
+ 
+     publish(server_args, role="tokenizer")
+ 
+-    # API key authentication is not supported in multi-tokenizer mode
+-    assert (
+-        get_serving().api_key is None
+-    ), "API key is not supported in multi-tokenizer mode"
++    # 09-11 tkw-auth patch (v2): enforce api-key auth INSIDE each multi-tokenizer
++    # worker. Granian multi-worker mode serves the module-level `app` re-resolved
++    # per worker (see _run_granian_server target), so middleware added in the
++    # master process is not seen here. server_args (incl. api_key) is available
++    # from shm at this point, so attach the same auth middleware SGLang uses in
++    # single-tokenizer mode. The ASGI lifespan scope (this call) already built
++    # the middleware stack, so append to user_middleware and reset
++    # middleware_stack to force a rebuild with auth before the first request.
++    if (
++        server_args.api_key
++        or server_args.admin_api_key
++        or app_has_admin_force_endpoints(app)
++    ):
++        from starlette.middleware import Middleware as _TkwMW
++
++        class _TkwApiKeyASGIMiddleware:
++            # mirror of sglang.srt.utils.auth._ApiKeyASGIMiddleware (local class)
++            def __init__(self, app, *, api_key, admin_api_key, fastapi_app):
++                self.app = app
++                self.api_key = api_key
++                self.admin_api_key = admin_api_key
++                self.fastapi_app = fastapi_app
++
++            async def __call__(self, scope, receive, send):
++                if scope["type"] != "http":
++                    await self.app(scope, receive, send)
++                    return
++                from starlette.requests import Request
++                from fastapi.responses import ORJSONResponse
++                from sglang.srt.utils.auth import (
++                    decide_request_auth,
++                    _get_auth_level_from_app_and_scope,
++                )
++
++                request = Request(scope, receive=receive)
++                path = request.url.path
++                authz = request.headers.get("Authorization")
++                level = _get_auth_level_from_app_and_scope(self.fastapi_app, scope)
++                decision = decide_request_auth(
++                    method=request.method,
++                    path=path,
++                    authorization_header=authz,
++                    api_key=self.api_key,
++                    admin_api_key=self.admin_api_key,
++                    auth_level=level,
++                )
++                if not decision.allowed:
++                    response = ORJSONResponse(
++                        content={
++                            "error": (
++                                "Unauthorized"
++                                if decision.error_status_code == 401
++                                else "Forbidden"
++                            )
++                        },
++                        status_code=decision.error_status_code,
++                    )
++                    await response(scope, receive, send)
++                    return
++                await self.app(scope, receive, send)
++
++        app.user_middleware.insert(
++            0,
++            _TkwMW(
++                _TkwApiKeyASGIMiddleware,
++                api_key=server_args.api_key,
++                admin_api_key=server_args.admin_api_key,
++                fastapi_app=app,
++            ),
++        )
++        # force middleware stack rebuild (see comment above)
++        app.middleware_stack = None
++
+ 
+     # Create a new ipc name for the current process
+     port_args.tokenizer_ipc_name = (

@@ -1,0 +1,17 @@
+{
+  "_comment": "脱敏结构示例 — 原 prod-inspect-0831.json 全量排除（含真实 channel 配置），此文件仅保留结构。",
+  "channels": [
+    {
+      "id": 1,
+      "name": "<channel-name>",
+      "type": 14,
+      "base_url": "http://127.0.0.1:30010",
+      "key": "<API_KEY_PLACEHOLDER>",
+      "models": ["qwen3.8"],
+      "weight": 1
+    }
+  ],
+  "settings": {
+    "SensitiveWordExemptUserIDs": [0]
+  }
+}

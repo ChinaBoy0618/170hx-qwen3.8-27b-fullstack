@@ -1,0 +1,51 @@
+--- a/managers/scheduler.py
++++ b/managers/scheduler.py
+@@ -4502,18 +4502,20 @@
+         self._ttl_wm_last_check = now
+         try:
+             usage = tree_cache._ttl_token_usage()
+-            if usage < 0.85:
++            if usage < 0.75:
+                 return
+             from sglang.srt.mem_cache.base_prefix_cache import EvictParams
+ 
+             total = tree_cache.kv_cache.size
+             if usage >= 0.90:
+-                # immediate: reclaim oldest non-hot down to <85%
+-                target = max(0.0, usage - 0.84) * total
++                # >90%: immediately reclaim oldest 35%
++                target = 0.35 * total
++            elif usage >= 0.80:
++                # >80%: reclaim oldest ~22.5% (20-25%)
++                target = 0.225 * total
+             else:
+-                # graded reclaim within the 3-minute window: evict
+-                # expired / L3-tier first, bounded chunks per pass
+-                target = max(0.0, (usage - 0.85) * 0.20) * total
++                # 75-80%: small graded nudge (TTL drives the rest)
++                target = max(0.0, (usage - 0.75) * 0.20) * total
+             if target >= 1:
+                 tree_cache.evict(EvictParams(num_tokens=int(target)))
+         except Exception:
+--- a/mem_cache/hiradix_cache.py
++++ b/mem_cache/hiradix_cache.py
+@@ -1006,12 +1006,14 @@
+         # watermark bands -> retention TTL (confirmed semantics: retention
+         # shrinks as GPU KV pool usage rises)
+         if usage < 0.35:
+-            return 43200  # L1 band (25-35%): 12h
++            return 43200  # hot band (25-35%): 12h
+         if usage < 0.75:
+-            return 14400  # L2 band (65-75%): 4h
+-        if usage < 0.85:
+-            return 1800  # L3 band (80-85%): 30min
+-        return 180  # L4 (>85%): reclaimable within 3min
++            return 14400  # session band: 4h
++        if usage < 0.80:
++            return 1800  # >75%: 30min countdown
++        if usage < 0.90:
++            return 300  # >80%: 5min countdown
++        return 0  # >90%: immediate reclaim
+ 
+     def _ttl_token_usage(self) -> float:
+         try:

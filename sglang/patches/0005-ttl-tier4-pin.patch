@@ -1,0 +1,242 @@
+--- a/entrypoints/http_server.py
++++ b/entrypoints/http_server.py
+@@ -977,6 +977,16 @@
+         return _create_error_response(e)
+ 
+ 
++@app.api_route("/admin/pin_prefix", methods=["POST"])
++@auth_level(AuthLevel.ADMIN_OPTIONAL)
++async def pin_prefix():
++    """Pin the longest cached prefix (CC warm prefix) so it is never evicted."""
++    result = await _global_state.tokenizer_manager.pin_prefix()
++    return ORJSONResponse(
++        {"success": result.success, "pinned_nodes": result.pinned_nodes, "message": result.message}
++    )
++
++
+ @app.api_route("/flush_cache", methods=["GET", "POST"])
+ @auth_level(AuthLevel.ADMIN_OPTIONAL)
+ async def flush_cache(timeout: float = Query(0.0, ge=0.0)):
+--- a/managers/io_struct.py
++++ b/managers/io_struct.py
+@@ -1667,6 +1667,16 @@
+     message: str = ""
+ 
+ 
++class PinPrefixReqInput(BaseReq, kw_only=True):
++    pass
++
++
++class PinPrefixReqOutput(BaseReq, kw_only=True):
++    success: bool
++    pinned_nodes: int = 0
++    message: str = ""
++
++
+ class AddExternalCorpusReqInput(BaseReq, kw_only=True):
+     corpus_id: Optional[str] = None
+     file_path: Optional[str] = None
+--- a/managers/scheduler.py
++++ b/managers/scheduler.py
+@@ -137,6 +137,8 @@
+     ExpertDistributionReqType,
+     FinishReasonDict,
+     FlushCacheReqInput,
++    PinPrefixReqInput,
++    PinPrefixReqOutput,
+     FreezeGCReq,
+     GetInternalStateReq,
+     GetInternalStateReqOutput,
+@@ -1620,6 +1622,7 @@
+                 (BatchTokenizedGenerateReqInput, self.handle_batch_generate_request),
+                 (BatchTokenizedEmbeddingReqInput, self.handle_batch_embedding_request),
+                 (FlushCacheReqInput, self.flush_wrapper.handle),
++                (PinPrefixReqInput, self._handle_pin_prefix),
+                 (ClearHiCacheReqInput, self.clear_hicache_storage_wrapped),
+                 (AttachHiCacheStorageReqInput, self.attach_hicache_storage_wrapped),
+                 (DetachHiCacheStorageReqInput, self.detach_hicache_storage_wrapped),
+@@ -4773,6 +4776,19 @@
+ 
+         return DetachHiCacheStorageReqOutput(success=False, message=msg)
+ 
++    def _handle_pin_prefix(self, req) -> PinPrefixReqOutput:
++        """Pin the deepest radix prefix chain (CC warm prefix)."""
++        try:
++            if hasattr(self.tree_cache, "pin_prefix"):
++                count = self.tree_cache.pin_prefix()
++                return PinPrefixReqOutput(success=True, pinned_nodes=count)
++            return PinPrefixReqOutput(
++                success=False, pinned_nodes=0,
++                message=f"tree_cache {type(self.tree_cache).__name__} has no pin_prefix"
++            )
++        except Exception as e:
++            return PinPrefixReqOutput(success=False, pinned_nodes=0, message=str(e))
++
+     def flush_cache(self, empty_cache: bool = True):
+         """Flush memory pools (e.g., KV cache, Mamba cache) and optionally empty device allocator cache."""
+         if self.is_fully_idle():
+--- a/managers/tokenizer_control_mixin.py
++++ b/managers/tokenizer_control_mixin.py
+@@ -32,6 +32,8 @@
+     ExpertDistributionReqType,
+     FlushCacheReqInput,
+     FlushCacheReqOutput,
++    PinPrefixReqInput,
++    PinPrefixReqOutput,
+     GetInternalStateReq,
+     GetInternalStateReqOutput,
+     GetWeightsByNameReqInput,
+@@ -115,6 +117,7 @@
+     ("check_weights", CheckWeightsReqOutput),
+     ("slow_down", SlowDownReqOutput),
+     ("flush_cache", FlushCacheReqOutput),
++    ("pin_prefix", PinPrefixReqOutput),
+     ("add_external_corpus", AddExternalCorpusReqOutput),
+     ("remove_external_corpus", RemoveExternalCorpusReqOutput),
+     ("list_external_corpora", ListExternalCorporaReqOutput),
+@@ -312,6 +315,12 @@
+             self.mm_processor.clear_preprocess_cache()
+         return result
+ 
++    async def pin_prefix(self: TokenizerManager) -> PinPrefixReqOutput:
++        """Pin the longest cached prefix so it is never evicted."""
++        self.auto_create_handle_loop()
++        result = (await self.pin_prefix_communicator(PinPrefixReqInput()))[0]
++        return result
++
+     async def clear_hicache_storage(self: TokenizerManager) -> ClearHiCacheReqOutput:
+         """Clear the hierarchical cache storage."""
+         self.auto_create_handle_loop()
+--- a/mem_cache/unified_cache/unified_tree_core.py
++++ b/mem_cache/unified_cache/unified_tree_core.py
+@@ -139,6 +139,8 @@
+         # Anchor NodeId of an in-flight H->D load-back reading this node's
+         # host slots; such host copies must not be reclaimed until the ack.
+         self.load_back_pending_id: Optional[int] = None
++        # tier4: permanent pin (never evicted when True)
++        self.pinned = False
+ 
+     def component(self, component_type: ComponentType) -> ComponentData:
+         return self.component_data[component_type]
+@@ -646,6 +648,20 @@
+             if skip_swa and component.component_type == ComponentType.SWA:
+                 continue
+             component.release_component_lock(node=node, params=params)
++        # tier4: restore pin floor on any pinned node along the path
++        cur = node
++        while cur is not None and cur.parent is not None:
++            if getattr(cur, "pinned", False):
++                for component in self.components:
++                    cd = cur.component_data[component.component_type]
++                    if cd.lock_ref < 1:
++                        cd.lock_ref = 1
++                        if cd.value is not None:
++                            klen = len(cd.value)
++                            self.component_evictable_size_[component.component_type] -= klen
++                            self.component_protected_size_[component.component_type] += klen
++                self._update_evictable_leaf_sets(cur)
++            cur = cur.parent
+         self._update_evictable_leaf_sets(node)
+         # TODO: delta is not aggregated from components; no caller uses it yet.
+         return DecLockRefResult()
+@@ -678,6 +694,15 @@
+         for comp in self.components:
+             if comp.eviction_priority(is_leaf=False) < swa_priority:
+                 comp.release_component_lock(node, dec_params)
++        # tier4: restore pin floor
++        if getattr(node, "pinned", False):
++            for comp in self.components:
++                cd = node.component_data[comp.component_type]
++                if cd.lock_ref < 1:
++                    cd.lock_ref = 1
++                if cd.host_lock_ref < 1:
++                    cd.host_lock_ref = 1
++            self._update_evictable_leaf_sets(node)
+         return result
+ 
+     def inc_host_lock_ref(self, node_id: NodeId) -> IncLockRefResult:
+@@ -696,6 +721,16 @@
+         node = self.node_by_id(node_id)
+         for component in self.components:
+             component.release_component_lock(node=node, params=params, lock_host=True)
++        # tier4: restore pin floor on any pinned node along the path
++        cur = node
++        while cur is not None and cur.parent is not None:
++            if getattr(cur, "pinned", False):
++                for component in self.components:
++                    cd = cur.component_data[component.component_type]
++                    if cd.host_lock_ref < 1:
++                        cd.host_lock_ref = 1
++                self._update_evictable_leaf_sets(cur)
++            cur = cur.parent
+         self._update_evictable_leaf_sets(node)
+         return DecLockRefResult()
+ 
+@@ -1173,6 +1208,7 @@
+         new_node.creation_time = child.creation_time
+         new_node.tier = getattr(child, "tier", 1)
+         new_node.expire_at = getattr(child, "expire_at", None)
++        new_node.pinned = getattr(child, "pinned", False)
+         # Split fragments stay on the anchor's root path for the ack's walk.
+         new_node.load_back_pending_id = child.load_back_pending_id
+ 
+@@ -1663,6 +1699,8 @@
+         self._update_evictable_leaf_sets(node)
+ 
+     def _is_cascade_evict_leaf(self, node: UnifiedTreeNode, target: EvictLayer) -> bool:
++        if getattr(node, "pinned", False):
++            return False
+         if target == EvictLayer.DEVICE:
+             return node in self.evictable_device_leaves
+         if target == EvictLayer.HOST:
+--- a/mem_cache/unified_radix_cache.py
++++ b/mem_cache/unified_radix_cache.py
+@@ -625,6 +625,48 @@
+         }
+         return self._evict(params, available_size_targets)
+ 
++    def pin_prefix(self) -> int:
++        """Pin the longest prefix chain (deepest leaf to root) so it is
++        never evicted. Call after warm-up to make the CC prefix permanent.
++        Returns the number of pinned nodes.
++        """
++        if self.disable:
++            return 0
++        core = self.tree_core
++        # DFS to find the deepest node (longest token path from root).
++        deepest = core.root_node
++        max_depth = 0
++        stack = [(core.root_node, 0)]
++        while stack:
++            node, depth = stack.pop()
++            if depth > max_depth:
++                max_depth = depth
++                deepest = node
++            for child in node.children.values():
++                klen = len(child.key) if child.key else 0
++                stack.append((child, depth + klen))
++        if deepest is core.root_node:
++            return 0
++        # Walk up from deepest to root, pinning each node.
++        count = 0
++        node = deepest
++        while node is not None and node.parent is not None:
++            node.pinned = True
++            for component in core.components:
++                cd = node.component_data[component.component_type]
++                if cd.lock_ref < 1:
++                    cd.lock_ref = 1
++                    if cd.value is not None:
++                        key_len = len(cd.value)
++                        core.component_evictable_size_[component.component_type] -= key_len
++                        core.component_protected_size_[component.component_type] += key_len
++                if cd.host_lock_ref < 1:
++                    cd.host_lock_ref = 1
++            core._update_evictable_leaf_sets(node)
++            count += 1
++            node = node.parent
++        return count
++
+     @staticmethod
+     def _evict_request_by_type(params: EvictParams) -> dict[ComponentType, int]:
+         return {

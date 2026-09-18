@@ -1,0 +1,27 @@
+# 170HX fullstack — SGLang production image
+# = base(0.5.19 + 0001..0005) + 0006 tc-lookahead（reasoning_parser.py 整文件替换）
+#
+# 0006 与 0001-0005 不同：不是 diff 补丁，是整文件 COPY（0917 生产镜像同方式）：
+#   修"thinking 内工具标签泄漏"——Qwen3Detector 开启 _tc_lookahead + tc_block_prefix="<function="
+#   （其它 detector 走 legacy 立即关闭，零影响；生成器 patch_tc_lookahead.py 同目录存证）
+#
+# 构建（仓库根目录，先 build base）:
+#   docker build -f sglang/Dockerfile.prod -t sglang:dflash2-fullstack .
+#
+# 构建期硬门:
+#   G1  替换后 reasoning_parser.py md5 == 760 现役生产容器活体文件 (d2d352a4…)
+#   G2  冒烟: Qwen3Detector()._tc_lookahead is True and tc_block_prefix == "<function="
+ARG BASE=sglang:dflash2-fullstack-base
+FROM ${BASE}
+
+COPY sglang/patches/0006-tc-lookahead/reasoning_parser.py \
+     /sgl-workspace/sglang/python/sglang/srt/parser/reasoning_parser.py
+
+RUN set -eux; \
+    P=/sgl-workspace/sglang/python/sglang/srt/parser/reasoning_parser.py; \
+    echo "=== G1: tc-lookahead file md5 gate (== 760 live container) ==="; \
+    echo "d2d352a4ceb1bafb4feecd3d905f50dc  $P" | md5sum -c -; \
+    rm -f /sgl-workspace/sglang/python/sglang/srt/parser/__pycache__/reasoning_parser.cpython-*.pyc; \
+    echo "=== G2: tc-lookahead behavior smoke ==="; \
+    python -c "from sglang.srt.parser.reasoning_parser import Qwen3Detector; d = Qwen3Detector(); assert d._tc_lookahead is True and d.tc_block_prefix == '<function=', 'tc-lookahead not active'; print('tc-lookahead OK')"; \
+    python -c "from sglang.srt.parser.reasoning_parser import BaseReasoningFormatDetector, DeepSeekR1Detector; d = DeepSeekR1Detector(); assert d._tc_lookahead is False, 'legacy detector must stay legacy'; print('legacy detector untouched OK')"

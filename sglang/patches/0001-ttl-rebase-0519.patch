@@ -1,0 +1,213 @@
+--- a/managers/scheduler.py
++++ b/managers/scheduler.py
+@@ -1836,6 +1836,7 @@
+ 
+             # Update last_batch
+             self.last_batch = batch
++            self._maybe_ttl_watermark_reclaim()
+             if envs.SGLANG_ENABLE_STRICT_MEM_CHECK_DURING_BUSY.get():
+                 self.invariant_checker.self_check_during_busy()
+ 
+@@ -1911,6 +1912,7 @@
+             # Update last_batch
+             self.last_batch = batch
+ 
++            self._maybe_ttl_watermark_reclaim()
+             if envs.SGLANG_ENABLE_STRICT_MEM_CHECK_DURING_BUSY.get():
+                 self.invariant_checker.self_check_during_busy()
+ 
+@@ -4480,6 +4482,43 @@
+             if_success = False
+         return ClearHiCacheReqOutput(success=if_success)
+ 
++    def _maybe_ttl_watermark_reclaim(self):
++        """Watermark-driven active reclaim (layer 4 of the tiered retention).
++
++        Passive eviction only fires on allocation failure; this adds the
++        watermark trigger: >85% graded reclaim (expired/L3 first, via the
++        ttl_watermark eviction ordering), >90% immediate clear of the oldest
++        non-hot entries down to <85%. Inert unless the engine runs with
++        --radix-eviction-policy ttl_watermark.
++        """
++        tree_cache = getattr(self, "tree_cache", None)
++        if tree_cache is None or not getattr(
++            tree_cache, "ttl_watermark_enabled", False
++        ):
++            return
++        now = time.monotonic()
++        if now - getattr(self, "_ttl_wm_last_check", 0.0) < 5.0:
++            return
++        self._ttl_wm_last_check = now
++        try:
++            usage = tree_cache._ttl_token_usage()
++            if usage < 0.85:
++                return
++            from sglang.srt.mem_cache.base_prefix_cache import EvictParams
++
++            total = tree_cache.kv_cache.size
++            if usage >= 0.90:
++                # immediate: reclaim oldest non-hot down to <85%
++                target = max(0.0, usage - 0.84) * total
++            else:
++                # graded reclaim within the 3-minute window: evict
++                # expired / L3-tier first, bounded chunks per pass
++                target = max(0.0, (usage - 0.85) * 0.20) * total
++            if target >= 1:
++                tree_cache.evict(EvictParams(num_tokens=int(target)))
++        except Exception:
++            pass
++
+     def on_idle(self):
+         """Idle housekeeping: guard, check, metrics, reset, sleep."""
+         # Flush any health-check signal deferred while the engine was busy.
+--- a/mem_cache/evict_policy.py
++++ b/mem_cache/evict_policy.py
+@@ -1,5 +1,6 @@
+ from __future__ import annotations
+ 
++import time
+ from abc import ABC, abstractmethod
+ from typing import TYPE_CHECKING, Tuple, Union
+ 
+@@ -63,3 +64,25 @@
+ 
+         is_protected = 1 if node.hit_count >= self.protected_threshold else 0
+         return (is_protected, node.last_access_time)
++
++
++class TTLWatermarkStrategy(EvictionStrategy):
++    """Tiered-TTL + watermark-aware eviction (four-layer KV retention).
++
++    Ordering key (min-heap pops smallest = evicted first):
++      1. alive: expired nodes (0) evicted before alive nodes (1)
++      2. tier:  L3/hot-recent (0) < L2/session (1) < L1/shared-prefix (2)
++      3. expire_at: sooner-to-expire first (inf = no expiry stamped)
++      4. last_access_time: oldest first
++
++    tier/expire_at are stamped by HiRadixCache (_ttl_stamp); nodes that were
++    never stamped keep default tier=1/expire_at=None and degrade to plain LRU
++    within band 2.
++    """
++
++    def get_priority(self, node: TreeNode) -> Tuple[int, int, float, float]:
++        expire_at = getattr(node, "expire_at", None)
++        alive = 1 if (expire_at is None or expire_at > time.monotonic()) else 0
++        tier = getattr(node, "tier", 1)
++        exp = expire_at if expire_at is not None else float("inf")
++        return (alive, tier, exp, node.last_access_time)
+--- a/mem_cache/hiradix_cache.py
++++ b/mem_cache/hiradix_cache.py
+@@ -210,6 +210,9 @@
+             1 if get_memory().hicache_write_policy == "write_through" else 2
+         )
+         self.load_back_threshold = 10
++        self.ttl_watermark_enabled = (
++            params.eviction_policy.lower() == "ttl_watermark"
++        )
+         # Detach storage backend automatically on process shutdown
+         atexit.register(self.shutdown)
+ 
+@@ -998,11 +1001,44 @@
+         host_value = torch.cat([n.host_value for n in chain])
+         return top, key, hash_value, host_value
+ 
++    # ---- TTL watermark (tiered retention) helpers ----
++    def _ttl_secs_for_usage(self, usage: float) -> int:
++        # watermark bands -> retention TTL (confirmed semantics: retention
++        # shrinks as GPU KV pool usage rises)
++        if usage < 0.35:
++            return 43200  # L1 band (25-35%): 12h
++        if usage < 0.75:
++            return 14400  # L2 band (65-75%): 4h
++        if usage < 0.85:
++            return 1800  # L3 band (80-85%): 30min
++        return 180  # L4 (>85%): reclaimable within 3min
++
++    def _ttl_token_usage(self) -> float:
++        try:
++            total = self.kv_cache.size
++            avail = self.token_to_kv_pool_allocator.available_size()
++            return 1.0 - avail / total if total > 0 else 0.0
++        except Exception:
++            return 0.0
++
++    def _ttl_stamp(self, node: TreeNode, promote: bool = False) -> None:
++        """Stamp/refresh tier + expire_at. promote=True upgrades the node to
++        L1 (shared prefix, fan-in signal: another request hit the same node)."""
++        if not self.ttl_watermark_enabled:
++            return
++        if promote and node.tier < 2:
++            node.tier = 2
++        node.expire_at = time.monotonic() + self._ttl_secs_for_usage(
++            self._ttl_token_usage()
++        )
++
+     def _inc_hit_count(self, node: TreeNode, chunked=False):
+         # skip the hit count update for chunked requests
+         if self.cache_controller.write_policy == "write_back" or chunked:
+             return
+         node.hit_count += 1
++        # hit_count>=2 means another request reuses this node -> shared prefix (L1)
++        self._ttl_stamp(node, promote=(node.hit_count >= 2))
+ 
+         if not node.backuped:
+             if node.hit_count >= self.write_through_threshold:
+@@ -1892,6 +1928,8 @@
+         new_node.lock_ref = child.lock_ref
+         new_node.key = child.key[:split_len]
+         new_node.hit_count = child.hit_count
++        new_node.tier = child.tier
++        new_node.expire_at = child.expire_at
+ 
+         # split value and host value if exists
+         if child.evicted:
+@@ -1986,6 +2024,7 @@
+             new_node.parent = node
+             new_node.key = key
+             new_node.value = value.clone()
++            self._ttl_stamp(new_node)
+             node.children[child_key] = new_node
+             self.evictable_size_ += len(value)
+             self._update_leaf_status(node)
+--- a/mem_cache/radix_cache.py
++++ b/mem_cache/radix_cache.py
+@@ -261,6 +261,10 @@
+         self.event_hash_value: Optional[List[str]] = None
+         # priority for priority-aware eviction
+         self.priority = priority
++        # tiered-TTL retention (ttl_watermark policy): 0=L3 hot-recent,
++        # 1=L2 session, 2=L1 shared-prefix; None expire_at = not stamped
++        self.tier = 1
++        self.expire_at = None
+ 
+         self.id = TreeNode.counter if id is None else id
+         TreeNode.counter += 1
+--- a/mem_cache/utils.py
++++ b/mem_cache/utils.py
+@@ -51,6 +51,7 @@
+     MRUStrategy,
+     PriorityStrategy,
+     SLRUStrategy,
++    TTLWatermarkStrategy,
+ )
+ 
+ _EVICTION_POLICY_FACTORIES: dict[str, Callable[[], EvictionStrategy]] = {
+@@ -61,6 +62,7 @@
+     "filo": FILOStrategy,
+     "priority": PriorityStrategy,
+     "slru": SLRUStrategy,
++    "ttl_watermark": TTLWatermarkStrategy,
+ }
+ 
+ 
+--- a/server_args.py
++++ b/server_args.py
+@@ -324,7 +324,7 @@
+ 
+ # --- Cache and scheduling policy ---
+ 
+-RADIX_EVICTION_POLICY_CHOICES = ["lru", "lfu", "slru", "priority"]
++RADIX_EVICTION_POLICY_CHOICES = ["lru", "lfu", "slru", "priority", "ttl_watermark"]
+ add_radix_eviction_policy_choices = RADIX_EVICTION_POLICY_CHOICES.extend
+ 
+ # --- Reinforcement learning ---

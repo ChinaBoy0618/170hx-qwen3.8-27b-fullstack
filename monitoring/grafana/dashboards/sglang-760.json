@@ -1,0 +1,4769 @@
+{
+  "uid": "sglang-760",
+  "title": "760T · 全链路 (SGLang KV分层 + smg + new-api + GPU)",
+  "tags": [
+    "sglang",
+    "760t",
+    "hicache",
+    "smg",
+    "new-api",
+    "gpu"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "10s",
+  "time": {
+    "from": "now-3h",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "instance",
+        "label": "worker (instance)",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prom"
+        },
+        "query": {
+          "refId": "PrometheusVariableQueryEditor-VariableQuery",
+          "query": "label_values(sglang:token_usage, instance)",
+          "selectOptions": [],
+          "refresh": 2,
+          "regex": ""
+        },
+        "current": {},
+        "options": [],
+        "includeAll": true,
+        "multi": true,
+        "sort": 1,
+        "definition": "label_values(sglang:token_usage, instance)"
+      }
+    ]
+  },
+  "annotations": {
+    "list": []
+  },
+  "panels": [
+    {
+      "type": "row",
+      "title": "⚠ 当前告警 (按组件分列, 点下方行标题展开对应组件)",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "panels": [
+        {
+          "id": 901,
+          "type": "stat",
+          "title": "firing 告警数",
+          "gridPos": {
+            "x": 0,
+            "y": 0,
+            "w": 4,
+            "h": 4
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "(count(prom_alerts{state=\"firing\"}) or vector(0))",
+              "legendFormat": "",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "decimals": 0,
+              "custom": {},
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "orange",
+                    "value": 0.8
+                  },
+                  {
+                    "color": "red",
+                    "value": 0.95
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "colorMode": "background",
+            "graphMode": "area",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "orientation": "auto"
+          }
+        },
+        {
+          "id": 902,
+          "type": "stat",
+          "title": "critical",
+          "gridPos": {
+            "x": 4,
+            "y": 0,
+            "w": 4,
+            "h": 4
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "(count(prom_alerts{state=\"firing\",severity=\"critical\"}) or vector(0))",
+              "legendFormat": "",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "decimals": 0,
+              "custom": {},
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "orange",
+                    "value": 0.8
+                  },
+                  {
+                    "color": "red",
+                    "value": 0.95
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "colorMode": "background",
+            "graphMode": "area",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "orientation": "auto"
+          }
+        },
+        {
+          "id": 903,
+          "type": "stat",
+          "title": "warning",
+          "gridPos": {
+            "x": 8,
+            "y": 0,
+            "w": 4,
+            "h": 4
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "(count(prom_alerts{state=\"firing\",severity=\"warning\"}) or vector(0))",
+              "legendFormat": "",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "decimals": 0,
+              "custom": {},
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "orange",
+                    "value": 0.8
+                  },
+                  {
+                    "color": "red",
+                    "value": 0.95
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "colorMode": "background",
+            "graphMode": "area",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "orientation": "auto"
+          }
+        },
+        {
+          "id": 904,
+          "type": "table",
+          "title": "firing 按组件 (点下方行标题展开对应组件)",
+          "gridPos": {
+            "x": 12,
+            "y": 0,
+            "w": 12,
+            "h": 4
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "count by (component, severity) (prom_alerts{state=\"firing\"})",
+              "legendFormat": "× {{component}}/{{severity}}",
+              "refId": "A",
+              "instant": true
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "decimals": 0,
+              "custom": {},
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "showHeader": true,
+            "footer": {
+              "show": false
+            },
+            "sortBy": []
+          },
+          "transformations": [
+            {
+              "id": "labelsToFields",
+              "options": {
+                "mode": "columns"
+              }
+            },
+            {
+              "id": "merge",
+              "options": {}
+            },
+            {
+              "id": "organize",
+              "options": {
+                "excludeByName": {},
+                "renameByName": {
+                  "Value": "count"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": 905,
+          "type": "table",
+          "title": "firing/pending 明细 (一告警一行)",
+          "gridPos": {
+            "x": 0,
+            "y": 4,
+            "w": 24,
+            "h": 7
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "prom_alerts{state=~\"firing|pending\"}",
+              "legendFormat": "",
+              "refId": "A",
+              "instant": true
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "decimals": 0,
+              "custom": {},
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "showHeader": true,
+            "footer": {
+              "show": false
+            },
+            "sortBy": []
+          },
+          "transformations": [
+            {
+              "id": "labelsToFields",
+              "options": {
+                "mode": "columns"
+              }
+            },
+            {
+              "id": "merge",
+              "options": {}
+            },
+            {
+              "id": "organize",
+              "options": {
+                "excludeByName": {
+                  "__name__": true,
+                  "job": true,
+                  "instance": true,
+                  "prom_alerts": true
+                },
+                "renameByName": {
+                  "exported_instance": "instance"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "1. SGLang · KV 分层切换(重点)",
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "panels": [
+        {
+          "id": 1,
+          "type": "gauge",
+          "title": "主机内存 KV 池占用 (每卡)",
+          "gridPos": {
+            "x": 0,
+            "y": 0,
+            "w": 4,
+            "h": 9
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "avg(sglang:hicache_host_used_tokens{instance=~\"$instance\"}) by (instance) / avg(sglang:hicache_host_total_tokens{instance=~\"$instance\"}) by (instance)",
+              "legendFormat": "{{instance}}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percentunit",
+              "decimals": 3,
+              "custom": {},
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "orange",
+                    "value": 0.8
+                  },
+                  {
+                    "color": "red",
+                    "value": 0.95
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "minValue": 0,
+            "maxValue": 1,
+            "showThresholdLabels": false,
+            "showThresholdMarkers": true
+          },
+          "description": "L2 层(主机内存)KV 缓存已用比例。write_through 稳态下偏满(>90%)是正常, 真正要盯的是下面 KV 丢损面板。"
+        },
+        {
+          "id": 2,
+          "type": "timeseries",
+          "title": "换出耗时 (GPU→内存, 每批)",
+          "gridPos": {
+            "x": 4,
+            "y": 0,
+            "w": 4,
+            "h": 9
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "sum(rate(sglang:hicache_backup_duration_seconds_sum{instance=~\"$instance\"}[5m])) by (instance) / sum(rate(sglang:hicache_backup_duration_seconds_count{instance=~\"$instance\"}[5m])) by (instance)",
+              "legendFormat": "平均 {{instance}}",
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "histogram_quantile(0.5, sum(rate(sglang:hicache_backup_duration_seconds_bucket{instance=~\"$instance\"}[5m])) by (le, instance))",
+              "legendFormat": "p50 {{instance}}",
+              "refId": "B"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "histogram_quantile(0.95, sum(rate(sglang:hicache_backup_duration_seconds_bucket{instance=~\"$instance\"}[5m])) by (le, instance))",
+              "legendFormat": "p95 {{instance}}",
+              "refId": "C"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s",
+              "decimals": 3,
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 1,
+                "fillOpacity": 8,
+                "spanNulls": true,
+                "showPoints": "never",
+                "instant": false
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "calcs": []
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "none"
+            }
+          },
+          "description": "把 KV 缓存从 GPU 显存写到主机内存、每批合并写一次的耗时。"
+        },
+        {
+          "id": 3,
+          "type": "timeseries",
+          "title": "换入耗时 (内存→GPU 读回)",
+          "gridPos": {
+            "x": 8,
+            "y": 0,
+            "w": 4,
+            "h": 9
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "sum(rate(sglang:load_back_duration_seconds_sum{instance=~\"$instance\"}[5m])) by (instance) / sum(rate(sglang:load_back_duration_seconds_count{instance=~\"$instance\"}[5m])) by (instance)",
+              "legendFormat": "平均 {{instance}}",
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "histogram_quantile(0.5, sum(rate(sglang:load_back_duration_seconds_bucket{instance=~\"$instance\"}[5m])) by (le, instance))",
+              "legendFormat": "p50 {{instance}}",
+              "refId": "B"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "histogram_quantile(0.95, sum(rate(sglang:load_back_duration_seconds_bucket{instance=~\"$instance\"}[5m])) by (le, instance))",
+              "legendFormat": "p95 {{instance}}",
+              "refId": "C"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s",
+              "decimals": 3,
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 1,
+                "fillOpacity": 8,
+                "spanNulls": true,
+                "showPoints": "never",
+                "instant": false
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "calcs": []
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "none"
+            }
+          },
+          "description": "把之前换到内存的 KV 从主机内存读回 GPU 显存的耗时。无操作窗口可能出空值(正常)。"
+        },
+        {
+          "id": 4,
+          "type": "timeseries",
+          "title": "换页实际带宽 (字节/s)",
+          "gridPos": {
+            "x": 0,
+            "y": 9,
+            "w": 6,
+            "h": 9
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "sum(rate(sglang:hicache_backup_bytes_total{instance=~\"$instance\"}[5m])) by (instance) / sum(rate(sglang:hicache_backup_duration_seconds_sum{instance=~\"$instance\"}[5m])) by (instance)",
+              "legendFormat": "换出(GPU→内存) {{instance}}",
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "sum(rate(sglang:load_back_bytes_total{instance=~\"$instance\"}[5m])) by (instance) / sum(rate(sglang:load_back_duration_seconds_sum{instance=~\"$instance\"}[5m])) by (instance)",
+              "legendFormat": "换入(内存→GPU) {{instance}}",
+              "refId": "B"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "Bps",
+              "decimals": 3,
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 1,
+                "fillOpacity": 8,
+                "spanNulls": true,
+                "showPoints": "never",
+                "instant": false
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom",
+              "calcs": []
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "none"
+            }
+          }
+        },
+        {
+          "id": 5,
+          "type": "timeseries",
+          "title": "换页流量 (tok/s, 换出的 token 速度)",
+          "gridPos": {
+            "x": 6,
+            "y": 9,
+            "w": 6,
+            "h": 9
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "rate(sglang:evicted_tokens_total{instance=~\"$instance\"}[5m])",
+              "legendFormat": "GPU 换出(不再生效)",
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "rate(sglang:hicache_backup_tokens_total{instance=~\"$instance\"}[5m])",
+              "legendFormat": "写到内存(D→H)",
+              "refId": "B"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "rate(sglang:load_back_tokens_total{instance=~\"$instance\"}[5m])",
+              "legendFormat": "读回显卡(H→D)",
+              "refId": "C"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "decimals": 3,
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 1,
+                "fillOpacity": 8,
+                "spanNulls": true,
+                "showPoints": "never",
+                "instant": false
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom",
+              "calcs": []
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "none"
+            }
+          },
+          "description": "KV 缓存分层存放:GPU 显存 → 主机内存。换出=从显存移到内存;换入=把之前换出的 KV 从内存读回显存继续用。"
+        },
+        {
+          "id": 6,
+          "type": "stat",
+          "title": "KV 丢损 (1h, >0 = host 池压力下备份失败)",
+          "gridPos": {
+            "x": 0,
+            "y": 18,
+            "w": 4,
+            "h": 5
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "increase(sglang:hicache_dropped_tokens_total{instance=~\"$instance\"}[1h])",
+              "legendFormat": "{{instance}}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "decimals": 0,
+              "custom": {},
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "orange",
+                    "value": 0.8
+                  },
+                  {
+                    "color": "red",
+                    "value": 0.95
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "colorMode": "background",
+            "graphMode": "area",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "orientation": "auto"
+          },
+          "description": "主机内存 KV 池满了、来不及备份到磁盘的 token 数。1 小时窗口内 >0 说明内存池承压, 有缓存被直接丢掉(下次要重新计算)。"
+        },
+        {
+          "id": 7,
+          "type": "timeseries",
+          "title": "命中分层 (prefill 有效 token/s, 谁省了算力)",
+          "gridPos": {
+            "x": 4,
+            "y": 18,
+            "w": 8,
+            "h": 5
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "sum(rate(sglang:prefill_effective_tokens_total{mode=\"device_hit\",instance=~\"$instance\"}[5m])) by (instance)",
+              "legendFormat": "显存命中",
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "sum(rate(sglang:prefill_effective_tokens_total{mode=\"host_hit\",instance=~\"$instance\"}[5m])) by (instance)",
+              "legendFormat": "内存命中",
+              "refId": "B"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "sum(rate(sglang:prefill_effective_tokens_total{mode=\"storage_hit\",instance=~\"$instance\"}[5m])) by (instance)",
+              "legendFormat": "磁盘命中",
+              "refId": "C"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "sum(rate(sglang:prefill_effective_tokens_total{mode=\"input\",instance=~\"$instance\"}[5m])) by (instance)",
+              "legendFormat": "未命中(要重算)",
+              "refId": "D"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "decimals": 1,
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 1,
+                "fillOpacity": 8,
+                "spanNulls": true,
+                "showPoints": "never",
+                "instant": false
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom",
+              "calcs": []
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "none"
+            }
+          },
+          "description": "每条请求的输入 token 从哪一层拿到:显存/内存/磁盘命中=省算力, 未命中=要重新 prefill。"
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "2. SGLang · GPU/KV 池",
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "panels": [
+        {
+          "id": 10,
+          "type": "gauge",
+          "title": "设备 KV 池占用 (瞬时)",
+          "gridPos": {
+            "x": 0,
+            "y": 0,
+            "w": 4,
+            "h": 5
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "1 - sglang:kv_available_tokens{instance=~\"$instance\"}/sglang:max_total_num_tokens{instance=~\"$instance\"}",
+              "legendFormat": "{{instance}}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percentunit",
+              "decimals": 4,
+              "custom": {},
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "orange",
+                    "value": 0.8
+                  },
+                  {
+                    "color": "red",
+                    "value": 0.95
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "minValue": 0,
+            "maxValue": 1,
+            "showThresholdLabels": false,
+            "showThresholdMarkers": true
+          },
+          "description": "显存里 KV 缓存的占用比例。瞬时值随请求间隙回落, 3h 峰值接近 100% 是常态。mamba 池=滑动窗口缓存(容量自适应)。"
+        },
+        {
+          "id": 11,
+          "type": "gauge",
+          "title": "设备 KV 池峰值 (3h)",
+          "gridPos": {
+            "x": 4,
+            "y": 0,
+            "w": 4,
+            "h": 5
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "max_over_time((1 - sglang:kv_available_tokens{instance=~\"$instance\"}/sglang:max_total_num_tokens{instance=~\"$instance\"})[3h:1m])",
+              "legendFormat": "{{instance}}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percentunit",
+              "decimals": 4,
+              "custom": {},
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "orange",
+                    "value": 0.8
+                  },
+                  {
+                    "color": "red",
+                    "value": 0.95
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "minValue": 0,
+            "maxValue": 1,
+            "showThresholdLabels": false,
+            "showThresholdMarkers": true
+          },
+          "description": "显存里 KV 缓存的占用比例。瞬时值随请求间隙回落, 3h 峰值接近 100% 是常态。mamba 池=滑动窗口缓存(容量自适应)。"
+        },
+        {
+          "id": 12,
+          "type": "gauge",
+          "title": "设备 mamba 池占用 (自适应)",
+          "gridPos": {
+            "x": 8,
+            "y": 0,
+            "w": 4,
+            "h": 5
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "sglang:mamba_used_tokens{instance=~\"$instance\"}/(sglang:mamba_used_tokens{instance=~\"$instance\"}+sglang:mamba_available_tokens{instance=~\"$instance\"})",
+              "legendFormat": "{{instance}}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percentunit",
+              "decimals": 4,
+              "custom": {},
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "orange",
+                    "value": 0.8
+                  },
+                  {
+                    "color": "red",
+                    "value": 0.95
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "minValue": 0,
+            "maxValue": 1,
+            "showThresholdLabels": false,
+            "showThresholdMarkers": true
+          },
+          "description": "显存里 KV 缓存的占用比例。瞬时值随请求间隙回落, 3h 峰值接近 100% 是常态。mamba 池=滑动窗口缓存(容量自适应)。"
+        },
+        {
+          "id": 13,
+          "type": "timeseries",
+          "title": "KV 池 tokens (kv / swa / mamba)",
+          "gridPos": {
+            "x": 0,
+            "y": 5,
+            "w": 6,
+            "h": 9
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "sum(sglang:kv_used_tokens{instance=~\"$instance\"}) by (instance)",
+              "legendFormat": "kv 已用 {{instance}}",
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "sum(sglang:kv_available_tokens{instance=~\"$instance\"}) by (instance)",
+              "legendFormat": "kv 可用 {{instance}}",
+              "refId": "B"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "sum(sglang:kv_evictable_tokens{instance=~\"$instance\"}) by (instance)",
+              "legendFormat": "kv 可回收 {{instance}}",
+              "refId": "C"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "sum(sglang:swa_used_tokens{instance=~\"$instance\"}) by (instance)",
+              "legendFormat": "sliding 已用 {{instance}}",
+              "refId": "D"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "sum(sglang:mamba_used_tokens{instance=~\"$instance\"}) by (instance)",
+              "legendFormat": "mamba 已用 {{instance}}",
+              "refId": "E"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "decimals": 0,
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 1,
+                "fillOpacity": 8,
+                "spanNulls": true,
+                "showPoints": "never",
+                "instant": false
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom",
+              "calcs": []
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "none"
+            }
+          }
+        },
+        {
+          "id": 14,
+          "type": "timeseries",
+          "title": "显存占用 (GB)",
+          "gridPos": {
+            "x": 6,
+            "y": 5,
+            "w": 6,
+            "h": 9
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "sum(sglang:weight_memory_usage_gb{instance=~\"$instance\"}) by (instance)",
+              "legendFormat": "模型权重 {{instance}}",
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "sum(sglang:kv_cache_memory_usage_gb{instance=~\"$instance\"}) by (instance)",
+              "legendFormat": "KV 缓存 {{instance}}",
+              "refId": "B"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "sum(sglang:graph_memory_usage_gb{instance=~\"$instance\"}) by (instance)",
+              "legendFormat": "CUDA graph {{instance}}",
+              "refId": "C"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "sum(sglang:startup_available_gpu_memory_gb{instance=~\"$instance\"}) by (instance)",
+              "legendFormat": "启动时可用 {{instance}}",
+              "refId": "D"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "gbytes",
+              "decimals": 1,
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 1,
+                "fillOpacity": 8,
+                "spanNulls": true,
+                "showPoints": "never",
+                "instant": false
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom",
+              "calcs": []
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "none"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "3. SGLang · 负载",
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "panels": [
+        {
+          "id": 20,
+          "type": "timeseries",
+          "title": "运行中请求 (按卡)",
+          "gridPos": {
+            "x": 0,
+            "y": 0,
+            "w": 4,
+            "h": 9
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "sum(sglang:num_running_reqs{instance=~\"$instance\"}) by (instance)",
+              "legendFormat": "正在生成 {{instance}}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "decimals": 0,
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 2,
+                "fillOpacity": 15,
+                "spanNulls": true,
+                "showPoints": "never",
+                "instant": false
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "regex",
+                  "options": "127\\.0\\.0\\.1:5800"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "color": "#4C9AFF"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "regex",
+                  "options": "127\\.0\\.0\\.1:5801"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "color": "#46E299"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "regex",
+                  "options": "127\\.0\\.0\\.1:5802"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "color": "#FFA800"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "regex",
+                  "options": "127\\.0\\.0\\.1:5803"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "color": "#FF5C5C"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom",
+              "calcs": [
+                "max"
+              ]
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "description": "running=正在生成 token 的请求，按卡。同色=同一张卡，跨面板可对照。"
+        },
+        {
+          "id": 102,
+          "type": "timeseries",
+          "title": "排队请求 (按卡)",
+          "gridPos": {
+            "x": 4,
+            "y": 0,
+            "w": 4,
+            "h": 9
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "sum(sglang:num_queue_reqs{instance=~\"$instance\"}) by (instance)",
+              "legendFormat": "排队等待 {{instance}}",
+              "refId": "B"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "decimals": 0,
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 2,
+                "fillOpacity": 15,
+                "spanNulls": true,
+                "showPoints": "never",
+                "instant": false
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "regex",
+                  "options": "127\\.0\\.0\\.1:5800"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "color": "#4C9AFF"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "regex",
+                  "options": "127\\.0\\.0\\.1:5801"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "color": "#46E299"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "regex",
+                  "options": "127\\.0\\.0\\.1:5802"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "color": "#FFA800"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "regex",
+                  "options": "127\\.0\\.0\\.1:5803"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "color": "#FF5C5C"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom",
+              "calcs": [
+                "max"
+              ]
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "description": "queue=在调度队列里等位的请求，按卡。持续>0 = 该卡在排队。"
+        },
+        {
+          "id": 103,
+          "type": "timeseries",
+          "title": "收回请求 (按卡)",
+          "gridPos": {
+            "x": 8,
+            "y": 0,
+            "w": 4,
+            "h": 9
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "sum(sglang:num_retracted_reqs{instance=~\"$instance\"}) by (instance)",
+              "legendFormat": "被收回(显存不足回滚) {{instance}}",
+              "refId": "C"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "decimals": 0,
+              "custom": {
+                "drawStyle": "bars",
+                "lineWidth": 1,
+                "fillOpacity": 0,
+                "spanNulls": true,
+                "showPoints": "never",
+                "instant": false
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "regex",
+                  "options": "127\\.0\\.0\\.1:5800"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "color": "#4C9AFF"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "regex",
+                  "options": "127\\.0\\.0\\.1:5801"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "color": "#46E299"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "regex",
+                  "options": "127\\.0\\.0\\.1:5802"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "color": "#FFA800"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "regex",
+                  "options": "127\\.0\\.0\\.1:5803"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "color": "#FF5C5C"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom",
+              "calcs": [
+                "max"
+              ]
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "description": "retracted=显存不足被回滚重排的请求，按卡。持续非 0 要留意 KV 池水位。"
+        },
+        {
+          "id": 21,
+          "type": "timeseries",
+          "title": "生成吞吐 (tok/s)",
+          "gridPos": {
+            "x": 12,
+            "y": 0,
+            "w": 4,
+            "h": 9
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "sum(sglang:gen_throughput{instance=~\"$instance\"}) by (instance)",
+              "legendFormat": "每秒生成 token {{instance}}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "decimals": 1,
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 1,
+                "fillOpacity": 8,
+                "spanNulls": true,
+                "showPoints": "never",
+                "instant": false
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "regex",
+                  "options": "127\\.0\\.0\\.1:5800"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "color": "#4C9AFF"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "regex",
+                  "options": "127\\.0\\.0\\.1:5801"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "color": "#46E299"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "regex",
+                  "options": "127\\.0\\.0\\.1:5802"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "color": "#FFA800"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "regex",
+                  "options": "127\\.0\\.0\\.1:5803"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "color": "#FF5C5C"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "options": {
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "calcs": []
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "none"
+            }
+          }
+        },
+        {
+          "id": 23,
+          "type": "timeseries",
+          "title": "prefill 吞吐 (有效 tok/s)",
+          "gridPos": {
+            "x": 20,
+            "y": 0,
+            "w": 4,
+            "h": 9
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "sum(rate(sglang:prefill_effective_tokens_total{mode=~\"device_hit|host_hit|storage_hit|input\",instance=~\"$instance\"}[5m])) by (instance)",
+              "legendFormat": "prefill 有效 token {{instance}}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "decimals": 1,
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 1,
+                "fillOpacity": 8,
+                "spanNulls": true,
+                "showPoints": "never",
+                "instant": false
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "regex",
+                  "options": "127\\.0\\.0\\.1:5800"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "color": "#4C9AFF"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "regex",
+                  "options": "127\\.0\\.0\\.1:5801"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "color": "#46E299"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "regex",
+                  "options": "127\\.0\\.0\\.1:5802"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "color": "#FFA800"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "regex",
+                  "options": "127\\.0\\.0\\.1:5803"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "color": "#FF5C5C"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "options": {
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "calcs": []
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "none"
+            }
+          },
+          "description": "每卡每秒 prefill 的输入 token 总量(命中+未命中四档求和, 与'生成吞吐'同排看 prefill/decode 两端)。分档明细见第 1 行'命中分层'面板。"
+        },
+        {
+          "id": 22,
+          "type": "timeseries",
+          "title": "新请求进来速度 (每分钟)",
+          "gridPos": {
+            "x": 16,
+            "y": 0,
+            "w": 4,
+            "h": 9
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "(sum(rate(sglang:num_requests_total{is_streaming=\"true\",instance=~\"$instance\"}[5m])) by (instance)) * 60",
+              "legendFormat": "流式(逐字返回) {{instance}}",
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "(sum(rate(sglang:num_requests_total{is_streaming=\"false\",instance=~\"$instance\"}[5m])) by (instance)) * 60",
+              "legendFormat": "非流式(整段返回) {{instance}}",
+              "refId": "B"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "cpm",
+              "decimals": 1,
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 1,
+                "fillOpacity": 8,
+                "spanNulls": true,
+                "showPoints": "never",
+                "instant": false
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "regex",
+                  "options": "127\\.0\\.0\\.1:5800"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "color": "#4C9AFF"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "regex",
+                  "options": "127\\.0\\.0\\.1:5801"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "color": "#46E299"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "regex",
+                  "options": "127\\.0\\.0\\.1:5802"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "color": "#FFA800"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "regex",
+                  "options": "127\\.0\\.0\\.1:5803"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "color": "#FF5C5C"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom",
+              "calcs": []
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "none"
+            }
+          },
+          "description": "新到请求的速率, 按返回方式分:流式=边生成边吐字(常见), 非流式=等生成完一次性返回。"
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "4. SGLang · 延迟",
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "panels": [
+        {
+          "id": 30,
+          "type": "timeseries",
+          "title": "TTFT (首 token 延迟)",
+          "gridPos": {
+            "x": 0,
+            "y": 0,
+            "w": 6,
+            "h": 9
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "histogram_quantile(0.5, sum(rate(sglang:time_to_first_token_seconds_bucket{instance=~\"$instance\"}[5m])) by (le, instance))",
+              "legendFormat": "p50 {{instance}}",
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "histogram_quantile(0.95, sum(rate(sglang:time_to_first_token_seconds_bucket{instance=~\"$instance\"}[5m])) by (le, instance))",
+              "legendFormat": "p95 {{instance}}",
+              "refId": "B"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "histogram_quantile(0.99, sum(rate(sglang:time_to_first_token_seconds_bucket{instance=~\"$instance\"}[5m])) by (le, instance))",
+              "legendFormat": "p99 {{instance}}",
+              "refId": "C"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s",
+              "decimals": 3,
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 1,
+                "fillOpacity": 8,
+                "spanNulls": true,
+                "showPoints": "never",
+                "instant": false
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom",
+              "calcs": []
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "none"
+            }
+          }
+        },
+        {
+          "id": 31,
+          "type": "timeseries",
+          "title": "E2E 整回合耗时 (mean/p50/p95)",
+          "gridPos": {
+            "x": 6,
+            "y": 0,
+            "w": 6,
+            "h": 9
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "sum(rate(sglang:e2e_request_latency_seconds_sum{instance=~\"$instance\"}[5m])) by (instance) / sum(rate(sglang:e2e_request_latency_seconds_count{instance=~\"$instance\"}[5m])) by (instance)",
+              "legendFormat": "平均 {{instance}}",
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "histogram_quantile(0.5, sum(rate(sglang:e2e_request_latency_seconds_bucket{instance=~\"$instance\"}[5m])) by (le, instance))",
+              "legendFormat": "p50 {{instance}}",
+              "refId": "B"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "histogram_quantile(0.95, sum(rate(sglang:e2e_request_latency_seconds_bucket{instance=~\"$instance\"}[5m])) by (le, instance))",
+              "legendFormat": "p95 {{instance}}",
+              "refId": "C"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s",
+              "decimals": 3,
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 1,
+                "fillOpacity": 8,
+                "spanNulls": true,
+                "showPoints": "never",
+                "instant": false
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom",
+              "calcs": []
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "none"
+            }
+          },
+          "description": "e2e=请求从进调度到出最后一个 token 的总耗时,流式含全部生成时间。agent 多工具长回合分钟级正常;5m 窗口样本少时 p95 会被单条最长请求钉死,跳高≠普遍变慢。看总体用 mean/p50,看尾延迟用 p95。"
+        },
+        {
+          "id": 35,
+          "type": "timeseries",
+          "title": "排队 / ITL (亚秒级)",
+          "gridPos": {
+            "x": 12,
+            "y": 0,
+            "w": 6,
+            "h": 9
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "sum(rate(sglang:queue_time_seconds_sum{instance=~\"$instance\"}[5m])) by (instance) / sum(rate(sglang:queue_time_seconds_count{instance=~\"$instance\"}[5m])) by (instance)",
+              "legendFormat": "排队等待 {{instance}}",
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "sum(rate(sglang:inter_token_latency_seconds_sum{instance=~\"$instance\"}[5m])) by (instance) / sum(rate(sglang:inter_token_latency_seconds_count{instance=~\"$instance\"}[5m])) by (instance)",
+              "legendFormat": "逐字间隔 {{instance}}",
+              "refId": "B"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s",
+              "decimals": 3,
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 1,
+                "fillOpacity": 8,
+                "spanNulls": true,
+                "showPoints": "never",
+                "instant": false
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom",
+              "calcs": []
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "none"
+            }
+          },
+          "description": "queue=调度前排队的平均等待;ITL=生成期逐 token 间隔均值,真·系统健康指标,正常应亚秒级。"
+        },
+        {
+          "id": 32,
+          "type": "timeseries",
+          "title": "分阶段延迟 (平均)",
+          "gridPos": {
+            "x": 0,
+            "y": 9,
+            "w": 6,
+            "h": 9
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "sum(rate(sglang:per_stage_req_latency_seconds_sum{instance=~\"$instance\"}[5m])) by (stage) / sum(rate(sglang:per_stage_req_latency_seconds_count{instance=~\"$instance\"}[5m])) by (stage)",
+              "legendFormat": "{{stage}}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s",
+              "decimals": 3,
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 1,
+                "fillOpacity": 8,
+                "spanNulls": true,
+                "showPoints": "never",
+                "instant": false
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom",
+              "calcs": []
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "none"
+            }
+          },
+          "description": "请求在各阶段花的平均时间: request_process=进调度排队, prefill_forward=吃输入算 KV, chunked_prefill=长输入分块预填充。"
+        },
+        {
+          "id": 33,
+          "type": "timeseries",
+          "title": "缓存命中率 (0-1)",
+          "gridPos": {
+            "x": 6,
+            "y": 9,
+            "w": 3,
+            "h": 9
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "sum(sglang:cache_hit_rate{instance=~\"$instance\"}) by (instance)",
+              "legendFormat": "命中率 {{instance}}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percentunit",
+              "decimals": 4,
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 1,
+                "fillOpacity": 8,
+                "spanNulls": true,
+                "showPoints": "never",
+                "instant": false
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "calcs": []
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "none"
+            }
+          }
+        },
+        {
+          "id": 34,
+          "type": "timeseries",
+          "title": "实时生成吞吐 (tok/s)",
+          "gridPos": {
+            "x": 9,
+            "y": 9,
+            "w": 3,
+            "h": 9
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "rate(sglang:realtime_tokens_total{instance=~\"$instance\"}[5m])",
+              "legendFormat": "生成速度 {{instance}}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "decimals": 1,
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 1,
+                "fillOpacity": 8,
+                "spanNulls": true,
+                "showPoints": "never",
+                "instant": false
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "calcs": []
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "none"
+            }
+          }
+        },
+        {
+          "id": 36,
+          "type": "timeseries",
+          "title": "每轮 prefill 延迟 (p50/p90/p99, 按卡×阶段)",
+          "gridPos": {
+            "x": 0,
+            "y": 18,
+            "w": 12,
+            "h": 9
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "histogram_quantile(0.5, sum(rate(sglang:per_stage_req_latency_seconds_bucket{stage=~\"prefill_forward|chunked_prefill\",instance=~\"$instance\"}[5m])) by (le, instance, stage))",
+              "legendFormat": "p50 {{stage}} {{instance}}",
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "histogram_quantile(0.9, sum(rate(sglang:per_stage_req_latency_seconds_bucket{stage=~\"prefill_forward|chunked_prefill\",instance=~\"$instance\"}[5m])) by (le, instance, stage))",
+              "legendFormat": "p90 {{stage}} {{instance}}",
+              "refId": "B"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "histogram_quantile(0.99, sum(rate(sglang:per_stage_req_latency_seconds_bucket{stage=~\"prefill_forward|chunked_prefill\",instance=~\"$instance\"}[5m])) by (le, instance, stage))",
+              "legendFormat": "p99 {{stage}} {{instance}}",
+              "refId": "C"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s",
+              "decimals": 2,
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 1,
+                "fillOpacity": 8,
+                "spanNulls": true,
+                "showPoints": "never",
+                "instant": false
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom",
+              "calcs": []
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "none"
+            }
+          },
+          "description": "每请求纯 prefill 计算耗时(不含排队, 排队见'排队/ITL')。prefill_forward=整段输入前向(每请求都有); chunked_prefill=仅长输入触发分块时记录, 5m 窗内无分块请求时该线为空(正常, 非故障)。"
+        },
+        {
+          "id": 37,
+          "type": "timeseries",
+          "title": "每轮输入 token (prompt / 未命中重算, p50/p90/p99)",
+          "gridPos": {
+            "x": 12,
+            "y": 18,
+            "w": 12,
+            "h": 9
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "histogram_quantile(0.5, sum(rate(sglang:prompt_tokens_histogram_bucket{instance=~\"$instance\"}[5m])) by (le, instance))",
+              "legendFormat": "prompt p50 {{instance}}",
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "histogram_quantile(0.9, sum(rate(sglang:prompt_tokens_histogram_bucket{instance=~\"$instance\"}[5m])) by (le, instance))",
+              "legendFormat": "prompt p90 {{instance}}",
+              "refId": "B"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "histogram_quantile(0.99, sum(rate(sglang:prompt_tokens_histogram_bucket{instance=~\"$instance\"}[5m])) by (le, instance))",
+              "legendFormat": "prompt p99 {{instance}}",
+              "refId": "C"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "histogram_quantile(0.5, sum(rate(sglang:uncached_prompt_tokens_histogram_bucket{instance=~\"$instance\"}[5m])) by (le, instance))",
+              "legendFormat": "uncached p50 {{instance}}",
+              "refId": "D"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "histogram_quantile(0.9, sum(rate(sglang:uncached_prompt_tokens_histogram_bucket{instance=~\"$instance\"}[5m])) by (le, instance))",
+              "legendFormat": "uncached p90 {{instance}}",
+              "refId": "E"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "histogram_quantile(0.99, sum(rate(sglang:uncached_prompt_tokens_histogram_bucket{instance=~\"$instance\"}[5m])) by (le, instance))",
+              "legendFormat": "uncached p99 {{instance}}",
+              "refId": "F"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "decimals": 0,
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 1,
+                "fillOpacity": 8,
+                "spanNulls": true,
+                "showPoints": "never",
+                "instant": false
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom",
+              "calcs": []
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "none"
+            }
+          },
+          "description": "每轮输入 token 数分布。prompt=整段输入(命中+未命中); uncached=未命中、需重新 prefill 的部分。uncached 小=靠缓存; 明显变大=冷 prefill 在烧算力。"
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "5. SGLang · DFLASH / spec",
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "panels": [
+        {
+          "id": 40,
+          "type": "timeseries",
+          "title": "Spec 命中率 (DFLASH, 0-1)",
+          "gridPos": {
+            "x": 0,
+            "y": 0,
+            "w": 3,
+            "h": 9
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "sum(sglang:spec_accept_rate{instance=~\"$instance\"}) by (instance)",
+              "legendFormat": "命中 {{instance}}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percentunit",
+              "decimals": 4,
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 1,
+                "fillOpacity": 8,
+                "spanNulls": true,
+                "showPoints": "never",
+                "instant": false
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "calcs": []
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "none"
+            }
+          },
+          "description": "投机解码(DFLASH): 草稿模型先猜一串 token, 命中率=猜对了被主模型接受的比例。越高=越省算力。"
+        },
+        {
+          "id": 41,
+          "type": "timeseries",
+          "title": "Spec 平均接受长度 / 草稿数 (token)",
+          "gridPos": {
+            "x": 3,
+            "y": 0,
+            "w": 3,
+            "h": 9
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "sum(sglang:spec_accept_length{instance=~\"$instance\"}) by (instance)",
+              "legendFormat": "平均接受 {{instance}}",
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "sum(sglang:spec_num_draft_tokens{instance=~\"$instance\"}) by (instance)",
+              "legendFormat": "草稿数 {{instance}}",
+              "refId": "B"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "decimals": 3,
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 1,
+                "fillOpacity": 8,
+                "spanNulls": true,
+                "showPoints": "never",
+                "instant": false
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "calcs": []
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "none"
+            }
+          },
+          "description": "每次草稿模型猜几个 token、平均被主模型接受几个(接受长度); 两者之比=命中率。"
+        },
+        {
+          "id": 42,
+          "type": "timeseries",
+          "title": "CUDA graph 路径 (次/s)",
+          "gridPos": {
+            "x": 6,
+            "y": 0,
+            "w": 6,
+            "h": 9
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "sum(rate(sglang:cuda_graph_passes_total{mode!=\"decode_cuda_graph\",instance=~\"$instance\"}[5m])) by (mode, instance)",
+              "legendFormat": "输入填充(吃上下文) {{mode}} {{instance}}",
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "sum(rate(sglang:cuda_graph_passes_total{mode=\"decode_cuda_graph\",instance=~\"$instance\"}[5m])) by (instance)",
+              "legendFormat": "逐字生成 {{instance}}",
+              "refId": "B"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "decimals": 1,
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 1,
+                "fillOpacity": 8,
+                "spanNulls": true,
+                "showPoints": "never",
+                "instant": false
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom",
+              "calcs": []
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "none"
+            }
+          },
+          "description": "引擎走 GPU 快速路径(CUDA graph)的每秒调用次数: 输入填充阶段 vs 逐字生成阶段。"
+        },
+        {
+          "id": 43,
+          "type": "timeseries",
+          "title": "各接口请求量 (每分钟)",
+          "gridPos": {
+            "x": 0,
+            "y": 9,
+            "w": 6,
+            "h": 9
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "(sum(rate(sglang:http_requests_total{instance=~\"$instance\"}[5m])) by (endpoint)) * 60",
+              "legendFormat": "{{endpoint}}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "cpm",
+              "decimals": 1,
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 1,
+                "fillOpacity": 8,
+                "spanNulls": true,
+                "showPoints": "never",
+                "instant": false
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom",
+              "calcs": []
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "none"
+            }
+          },
+          "description": "worker 各 HTTP 接口的每分钟请求数: /v1/messages=对话, /count_tokens=计费预检, /health=探活, /metrics=监控抓取。"
+        },
+        {
+          "id": 44,
+          "type": "timeseries",
+          "title": "非 2xx 响应 (排除 /health 探活, 每分钟)",
+          "gridPos": {
+            "x": 6,
+            "y": 9,
+            "w": 6,
+            "h": 9
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "(sum(rate(sglang:http_responses_total{endpoint!=\"/health\",status_code!~\"2..\",instance=~\"$instance\"}[5m])) by (endpoint, status_code)) * 60",
+              "legendFormat": "{{endpoint}} {{status_code}}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "cpm",
+              "decimals": 1,
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 1,
+                "fillOpacity": 8,
+                "spanNulls": true,
+                "showPoints": "never",
+                "instant": false
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom",
+              "calcs": []
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "none"
+            }
+          },
+          "description": "出错/非成功的响应按接口和状态码分类; /health 探活噪声已排除。持续 >0 要留意。"
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "6. smg 网关",
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "panels": [
+        {
+          "id": 50,
+          "type": "gauge",
+          "title": "worker 健康 (1=活)",
+          "gridPos": {
+            "x": 0,
+            "y": 0,
+            "w": 4,
+            "h": 9
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "smg_worker_health",
+              "legendFormat": "{{worker}}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "decimals": 0,
+              "custom": {},
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "orange",
+                    "value": 0.8
+                  },
+                  {
+                    "color": "red",
+                    "value": 0.95
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "minValue": 0,
+            "maxValue": 1,
+            "showThresholdLabels": false,
+            "showThresholdMarkers": true
+          },
+          "description": "网关探测到的 4 个 worker 是否存活: 1=活, 0=挂。"
+        },
+        {
+          "id": 51,
+          "type": "timeseries",
+          "title": "网关请求速率 (按接口, 每分钟)",
+          "gridPos": {
+            "x": 4,
+            "y": 0,
+            "w": 4,
+            "h": 9
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "sum(rate(smg_router_requests_total[5m])) by (endpoint, streaming) * 60",
+              "legendFormat": "{{endpoint}} {{streaming}} 次/分",
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "sum(rate(smg_http_responses_total{status_code!~\"2..\"}[5m])) * 60",
+              "legendFormat": "网关返回错误 次/分",
+              "refId": "B"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "sum(rate(smg_router_upstream_responses_total{status_code!=\"200\"}[5m])) * 60",
+              "legendFormat": "后端返回错误 次/分",
+              "refId": "C"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "cpm",
+              "decimals": 1,
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 1,
+                "fillOpacity": 8,
+                "spanNulls": true,
+                "showPoints": "never",
+                "instant": false
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom",
+              "calcs": []
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "none"
+            }
+          },
+          "description": "smg 把请求路径归成 chat 和 other 两类: chat=聊天类接口(OpenAI 风格), other=其它(目前 /v1/messages 等全在这类)。流式=边生成边吐字(主力流量), 非流式=整段返回。"
+        },
+        {
+          "id": 52,
+          "type": "timeseries",
+          "title": "网关路由耗时 (p50/p95)",
+          "gridPos": {
+            "x": 8,
+            "y": 0,
+            "w": 4,
+            "h": 9
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "histogram_quantile(0.5, sum(rate(smg_router_request_duration_seconds_bucket[5m])) by (le))",
+              "legendFormat": "p50",
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "histogram_quantile(0.95, sum(rate(smg_router_request_duration_seconds_bucket[5m])) by (le))",
+              "legendFormat": "p95",
+              "refId": "B"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s",
+              "decimals": 3,
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 1,
+                "fillOpacity": 8,
+                "spanNulls": true,
+                "showPoints": "never",
+                "instant": false
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom",
+              "calcs": []
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "none"
+            }
+          },
+          "description": "请求从进网关到拿到首个响应字节的耗时(不含后端生成时间), 正常几十毫秒级。"
+        },
+        {
+          "id": 53,
+          "type": "timeseries",
+          "title": "路由分布 · 各卡活跃请求",
+          "gridPos": {
+            "x": 12,
+            "y": 0,
+            "w": 4,
+            "h": 9
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "smg_worker_requests_active",
+              "legendFormat": "{{worker}}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "decimals": 0,
+              "custom": {
+                "drawStyle": "bars",
+                "lineWidth": 1,
+                "fillOpacity": 40,
+                "stacking": {
+                  "mode": "none",
+                  "group": "A"
+                },
+                "barWidth": 0.6,
+                "showPoints": "never",
+                "spanNulls": true,
+                "instant": false
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "blue",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom",
+              "calcs": [
+                "max",
+                "mean"
+              ]
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "description": "各 worker 当前活跃请求数（smg_worker_requests_active）。如果流量集中在单卡，说明路由不均。健康阈值: balance-abs=4, balance-rel=1.1。"
+        },
+        {
+          "id": 54,
+          "type": "timeseries",
+          "title": "路由分布 · 各卡请求速率(次/分)",
+          "gridPos": {
+            "x": 0,
+            "y": 9,
+            "w": 12,
+            "h": 8
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "sum(rate(smg_worker_cb_outcomes_total[5m])) by (worker)",
+              "legendFormat": "{{worker}}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "reqpm",
+              "decimals": 1,
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 1,
+                "fillOpacity": 12,
+                "spanNulls": true,
+                "showPoints": "never",
+                "instant": false
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "blue",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom",
+              "calcs": [
+                "mean",
+                "max"
+              ]
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "description": "每卡每分钟处理请求数(sm g_worker_cb_outcomes 按 worker 分组)。若流量集中单卡,会看到只有 1 根线在动;健康=四根线都有量。counter,用 rate 归一。"
+        },
+        {
+          "id": 55,
+          "type": "timeseries",
+          "title": "会话感知 · 活跃会话数",
+          "gridPos": {
+            "x": 16,
+            "y": 0,
+            "w": 4,
+            "h": 9
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "smg_manual_policy_cache_entries",
+              "legendFormat": "sessions",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "decimals": 0,
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 2,
+                "fillOpacity": 20,
+                "stacking": {
+                  "mode": "none",
+                  "group": "A"
+                },
+                "showPoints": "never",
+                "spanNulls": true,
+                "instant": false
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              },
+              "color": {
+                "mode": "fixed",
+                "fixedColor": "#705DA0"
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom"
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "description": "manual 策略路由表条目数=当前活跃会话数(smge_manual_policy_cache_entries)。会话粘卡后随会话数爬升;网关重启后应恢复(非0),在途会话回原卡不重 prefill。"
+        },
+        {
+          "id": 56,
+          "type": "timeseries",
+          "title": "会话感知 · 各卡会话数",
+          "gridPos": {
+            "x": 20,
+            "y": 0,
+            "w": 4,
+            "h": 9
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "smg_worker_routing_keys_active",
+              "legendFormat": "{{worker}}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "decimals": 0,
+              "custom": {
+                "drawStyle": "bars",
+                "lineWidth": 1,
+                "fillOpacity": 40,
+                "stacking": {
+                  "mode": "none",
+                  "group": "A"
+                },
+                "barWidth": 0.6,
+                "showPoints": "never",
+                "spanNulls": true,
+                "instant": false
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "blue",
+                    "value": null
+                  }
+                ]
+              },
+              "color": {
+                "mode": "fixed",
+                "fixedColor": "#E24D42"
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom",
+              "calcs": [
+                "max",
+                "mean"
+              ]
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "description": "各卡当前路由 key 数(smge_worker_routing_keys_active)。新会话应往空闲卡走,单卡占比<70%。"
+        },
+        {
+          "id": 57,
+          "type": "timeseries",
+          "title": "会话感知 · 路由分支速率 (/s)",
+          "gridPos": {
+            "x": 0,
+            "y": 9,
+            "w": 8,
+            "h": 9
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "sum by (branch) (rate(smg_manual_policy_branch_total[1m]))",
+              "legendFormat": "{{branch}}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "reqps",
+              "decimals": 2,
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 2,
+                "fillOpacity": 20,
+                "spanNulls": true,
+                "showPoints": "never",
+                "instant": false,
+                "stacking": {
+                  "mode": "none",
+                  "group": "A"
+                }
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              },
+              "color": {
+                "mode": "palette-classic"
+              }
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "occupied_hit"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#1F77B4"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "vacant"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#FF7F0E"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "occupied_miss"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#E24D42"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "no_routing_id"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#999999"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom",
+              "calcs": [
+                "mean",
+                "max",
+                "sum"
+              ]
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "description": "manual policy 路由决策分支速率:occupied_hit=粘滞命中(目标:占比最高);vacant=新建会话;occupied_miss=粘滞命中但该 worker 已挂,重选;no_routing_id=客户端未携带任何可识别 key(降级,需观察)。"
+        },
+        {
+          "id": 58,
+          "type": "stat",
+          "title": "会话感知 · 路由命中率 (粘滞命中 / 总识别)",
+          "gridPos": {
+            "x": 8,
+            "y": 9,
+            "w": 4,
+            "h": 9
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "sum(rate(smg_manual_policy_branch_total{branch=\"occupied_hit\"}[5m])) / clamp_min(sum(rate(smg_manual_policy_branch_total{branch=~\"occupied_hit|vacant\"}[5m])), 0.001)",
+              "legendFormat": "命中率",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percentunit",
+              "decimals": 2,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "red",
+                    "value": null
+                  },
+                  {
+                    "color": "yellow",
+                    "value": 0.5
+                  },
+                  {
+                    "color": "green",
+                    "value": 0.8
+                  }
+                ]
+              },
+              "color": {
+                "mode": "thresholds"
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "colorMode": "value",
+            "graphMode": "area",
+            "justifyMode": "auto",
+            "orientation": "auto",
+            "reduceOptions": {
+              "values": false,
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": ""
+            },
+            "textMode": "auto"
+          },
+          "description": "粘滞命中率=occupied_hit / (occupied_hit + vacant)。目标:稳态 >70%(稳定会话都回原卡);若 <30% 说明 header 未透传或客户端未带 ID。"
+        },
+        {
+          "id": 59,
+          "type": "timeseries",
+          "title": "SGLang · 4 卡 prefix cache 命中率 (radix)",
+          "gridPos": {
+            "x": 12,
+            "y": 9,
+            "w": 12,
+            "h": 9
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "sglang_cache_hit_rate{model_name=\"qwen3.8\"}",
+              "legendFormat": "gpu{{moe_ep_rank}}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percentunit",
+              "decimals": 2,
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 2,
+                "fillOpacity": 15,
+                "spanNulls": true,
+                "showPoints": "never",
+                "instant": false,
+                "stacking": {
+                  "mode": "none",
+                  "group": "A"
+                }
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              },
+              "color": {
+                "mode": "palette-classic"
+              },
+              "min": 0,
+              "max": 1
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "gpu0"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#1F77B4"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "gpu1"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#2CA02C"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "gpu2"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#FF7F0E"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "gpu3"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#D62728"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "right",
+              "calcs": [
+                "mean",
+                "max",
+                "lastNotNull"
+              ]
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "description": "SGLang radix prefix cache 命中率(0~1):会话粘卡后同会话后续 turn 复用上一轮 KV。目标:同会话稳态 >50%(取决于 system+tools 占比);会话感知路由上线后应看到逐卡命中率明显高于此前 cache_aware 策略下的水平。"
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "7. new-api",
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "panels": [
+        {
+          "id": 60,
+          "type": "timeseries",
+          "title": "模型成功率 (%) + 桥接源",
+          "gridPos": {
+            "x": 0,
+            "y": 0,
+            "w": 4,
+            "h": 9
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "newapi_model_success_rate",
+              "legendFormat": "{{model}} 成功率",
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "newapi_up",
+              "legendFormat": "数据桥接健康 (1=OK)",
+              "refId": "B"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "decimals": 2,
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 1,
+                "fillOpacity": 8,
+                "spanNulls": true,
+                "showPoints": "never",
+                "instant": false
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom",
+              "calcs": []
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "none"
+            }
+          },
+          "description": "new-api 各模型的成功率。桥接=把 new-api 的 JSON 指标转成 Prometheus 的桥, 1=正常采到数据。"
+        },
+        {
+          "id": 61,
+          "type": "timeseries",
+          "title": "模型平均延迟 (ms)",
+          "gridPos": {
+            "x": 4,
+            "y": 0,
+            "w": 4,
+            "h": 9
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "newapi_model_avg_latency_ms",
+              "legendFormat": "{{model}}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "ms",
+              "decimals": 0,
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 1,
+                "fillOpacity": 8,
+                "spanNulls": true,
+                "showPoints": "never",
+                "instant": false
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "calcs": []
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "none"
+            }
+          },
+          "description": "new-api 上报的各模型平均处理延迟。"
+        },
+        {
+          "id": 62,
+          "type": "timeseries",
+          "title": "模型平均 TPS",
+          "gridPos": {
+            "x": 8,
+            "y": 0,
+            "w": 4,
+            "h": 9
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "newapi_model_avg_tps",
+              "legendFormat": "{{model}}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "decimals": 1,
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 1,
+                "fillOpacity": 8,
+                "spanNulls": true,
+                "showPoints": "never",
+                "instant": false
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "calcs": []
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "none"
+            }
+          },
+          "description": "new-api 上报的各模型平均每秒生成 token 数。"
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "8. 宿主 (CPU/内存/磁盘)",
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "panels": [
+        {
+          "id": 80,
+          "type": "timeseries",
+          "title": "宿主可用内存 (L2 池余量)",
+          "gridPos": {
+            "x": 0,
+            "y": 0,
+            "w": 6,
+            "h": 9
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "node_memory_MemAvailable_bytes",
+              "legendFormat": "MemAvailable",
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes",
+              "legendFormat": "已用",
+              "refId": "B"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "bytes",
+              "decimals": 3,
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 1,
+                "fillOpacity": 8,
+                "spanNulls": true,
+                "showPoints": "never",
+                "instant": false
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom",
+              "calcs": []
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "none"
+            }
+          }
+        },
+        {
+          "id": 81,
+          "type": "timeseries",
+          "title": "宿主 load",
+          "gridPos": {
+            "x": 6,
+            "y": 0,
+            "w": 6,
+            "h": 9
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "node_load1",
+              "legendFormat": "load1",
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "node_load5",
+              "legendFormat": "load5",
+              "refId": "B"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "node_load15",
+              "legendFormat": "load15",
+              "refId": "C"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "decimals": 2,
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 1,
+                "fillOpacity": 8,
+                "spanNulls": true,
+                "showPoints": "never",
+                "instant": false
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom",
+              "calcs": []
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "none"
+            }
+          }
+        },
+        {
+          "id": 82,
+          "type": "timeseries",
+          "title": "宿主 CPU 占用 (%)",
+          "gridPos": {
+            "x": 12,
+            "y": 0,
+            "w": 6,
+            "h": 9
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "100 * (1 - sum(rate(node_cpu_seconds_total{mode=\"idle\"}[5m])) / sum(rate(node_cpu_seconds_total[5m])))",
+              "legendFormat": "cpu",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "decimals": 1,
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 1,
+                "fillOpacity": 8,
+                "spanNulls": true,
+                "showPoints": "never",
+                "instant": false
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "calcs": []
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "none"
+            }
+          }
+        },
+        {
+          "id": 83,
+          "type": "timeseries",
+          "title": "磁盘容量已用 (%)",
+          "gridPos": {
+            "x": 0,
+            "y": 9,
+            "w": 6,
+            "h": 9
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "100 * (1 - node_filesystem_avail_bytes{mountpoint=~\"/$|/mnt/data|/mnt/nvme1\"} / node_filesystem_size_bytes{mountpoint=~\"/$|/mnt/data|/mnt/nvme1\"})",
+              "legendFormat": "{{mountpoint}}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "decimals": 1,
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 1,
+                "fillOpacity": 8,
+                "spanNulls": true,
+                "showPoints": "never",
+                "instant": false
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom",
+              "calcs": []
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "none"
+            }
+          }
+        },
+        {
+          "id": 84,
+          "type": "timeseries",
+          "title": "磁盘余量 (GB)",
+          "gridPos": {
+            "x": 6,
+            "y": 9,
+            "w": 6,
+            "h": 9
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "node_filesystem_avail_bytes{mountpoint=~\"/$|/mnt/data|/mnt/nvme1\"} / 1024 / 1024 / 1024",
+              "legendFormat": "{{mountpoint}}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "gbytes",
+              "decimals": 1,
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 1,
+                "fillOpacity": 8,
+                "spanNulls": true,
+                "showPoints": "never",
+                "instant": false
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom",
+              "calcs": []
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "none"
+            }
+          }
+        },
+        {
+          "id": 93,
+          "type": "timeseries",
+          "title": "磁盘 I/O (B/s)",
+          "gridPos": {
+            "x": 12,
+            "y": 9,
+            "w": 6,
+            "h": 9
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "sum(rate(node_disk_read_bytes_total[5m])) by (device)",
+              "legendFormat": "read {{device}}",
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "sum(rate(node_disk_written_bytes_total[5m])) by (device)",
+              "legendFormat": "write {{device}}",
+              "refId": "B"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "Bps",
+              "decimals": 1,
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 1,
+                "fillOpacity": 8,
+                "spanNulls": true,
+                "showPoints": "never",
+                "instant": false
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom",
+              "calcs": []
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "none"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "9. GPU 硬件 (nvidia-smi)",
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "panels": [
+        {
+          "id": 85,
+          "type": "timeseries",
+          "title": "GPU 温度 (C)",
+          "gridPos": {
+            "x": 0,
+            "y": 0,
+            "w": 4,
+            "h": 9
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "nvidia_gpu_temperature_c",
+              "legendFormat": "gpu{{gpu}}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "celsius",
+              "decimals": 0,
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 1,
+                "fillOpacity": 8,
+                "spanNulls": true,
+                "showPoints": "never",
+                "instant": false
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "calcs": []
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "none"
+            }
+          }
+        },
+        {
+          "id": 86,
+          "type": "timeseries",
+          "title": "GPU 功耗 (W, cap 200)",
+          "gridPos": {
+            "x": 4,
+            "y": 0,
+            "w": 4,
+            "h": 9
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "nvidia_gpu_power_w",
+              "legendFormat": "功耗 gpu{{gpu}}",
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "nvidia_gpu_power_limit_w",
+              "legendFormat": "上限 gpu{{gpu}}",
+              "refId": "B"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "W",
+              "decimals": 1,
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 1,
+                "fillOpacity": 8,
+                "spanNulls": true,
+                "showPoints": "never",
+                "instant": false
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom",
+              "calcs": []
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "none"
+            }
+          },
+          "description": "四卡功耗上限统一压在 200W(有意设定, 永不动)。瞬时 burst 可小幅越限, 下方 功耗/cap(%) 面板 >100 属瞬态。"
+        },
+        {
+          "id": 87,
+          "type": "timeseries",
+          "title": "GPU 计算利用率 (SM, %)",
+          "gridPos": {
+            "x": 8,
+            "y": 0,
+            "w": 4,
+            "h": 9
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "nvidia_gpu_utilization_pct",
+              "legendFormat": "gpu{{gpu}}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "decimals": 0,
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 1,
+                "fillOpacity": 8,
+                "spanNulls": true,
+                "showPoints": "never",
+                "instant": false
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom",
+              "calcs": []
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "none"
+            }
+          }
+        },
+        {
+          "id": 92,
+          "type": "timeseries",
+          "title": "GPU 显存带宽利用率 (decode 瓶颈, %)",
+          "gridPos": {
+            "x": 12,
+            "y": 0,
+            "w": 4,
+            "h": 9
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "nvidia_gpu_memory_utilization_pct",
+              "legendFormat": "gpu{{gpu}}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "decimals": 0,
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 1,
+                "fillOpacity": 8,
+                "spanNulls": true,
+                "showPoints": "never",
+                "instant": false
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom",
+              "calcs": []
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "none"
+            }
+          },
+          "description": "SM 计算是瞬时值(锯齿), 显存带宽才是 decode 阶段真实瓶颈指标; 拆开展示避免 8 线叠压"
+        },
+        {
+          "id": 88,
+          "type": "timeseries",
+          "title": "显存已用 (GB)",
+          "gridPos": {
+            "x": 0,
+            "y": 9,
+            "w": 8,
+            "h": 9
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "nvidia_gpu_memory_used_bytes / 1024 / 1024 / 1024",
+              "legendFormat": "已用 gpu{{gpu}}",
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "nvidia_gpu_memory_total_bytes / 1024 / 1024 / 1024",
+              "legendFormat": "总量 gpu{{gpu}}",
+              "refId": "B"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "gbytes",
+              "decimals": 1,
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 1,
+                "fillOpacity": 8,
+                "spanNulls": true,
+                "showPoints": "never",
+                "instant": false
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom",
+              "calcs": []
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "none"
+            }
+          }
+        },
+        {
+          "id": 89,
+          "type": "timeseries",
+          "title": "SM 时钟 (MHz)",
+          "gridPos": {
+            "x": 8,
+            "y": 9,
+            "w": 8,
+            "h": 9
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "nvidia_gpu_sm_clock_mhz",
+              "legendFormat": "当前 gpu{{gpu}}",
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "nvidia_gpu_max_sm_clock_mhz",
+              "legendFormat": "上限 gpu{{gpu}}",
+              "refId": "B"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "MHz",
+              "decimals": 0,
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 1,
+                "fillOpacity": 8,
+                "spanNulls": true,
+                "showPoints": "never",
+                "instant": false
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom",
+              "calcs": []
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "none"
+            }
+          }
+        },
+        {
+          "id": 90,
+          "type": "stat",
+          "title": "nvidia-smi 轮询 (1=OK)",
+          "gridPos": {
+            "x": 0,
+            "y": 18,
+            "w": 4,
+            "h": 5
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "nvidia_up",
+              "legendFormat": "",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "decimals": 0,
+              "custom": {},
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "orange",
+                    "value": 0.8
+                  },
+                  {
+                    "color": "red",
+                    "value": 0.95
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "colorMode": "background",
+            "graphMode": "area",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "orientation": "auto"
+          }
+        },
+        {
+          "id": 91,
+          "type": "timeseries",
+          "title": "功耗/cap (%, >100 = 超 cap 瞬态)",
+          "gridPos": {
+            "x": 4,
+            "y": 18,
+            "w": 12,
+            "h": 5
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prom"
+              },
+              "expr": "nvidia_gpu_power_w / nvidia_gpu_power_limit_w * 100",
+              "legendFormat": "gpu{{gpu}}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "decimals": 0,
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 1,
+                "fillOpacity": 8,
+                "spanNulls": true,
+                "showPoints": "never",
+                "instant": false
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom",
+              "calcs": []
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "none"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

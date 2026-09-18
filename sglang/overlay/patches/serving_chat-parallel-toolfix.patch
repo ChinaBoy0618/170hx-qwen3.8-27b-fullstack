@@ -1,0 +1,28 @@
+--- serving_chat.py.pre-patch-0911	2026-09-11 09:34:29.356700522 +0800
++++ serving_chat.py	2026-09-11 12:47:44.742288580 +0800
+@@ -2627,8 +2627,23 @@
+                 normal_text = (normal_text or "") + end_text
+                 calls = list(calls) + end_calls
+ 
+-        # Yield normal text
+-        if normal_text:
++        # PATCH 2026-08-27 (parallel tool-call fix): once tool calls have
++        # started streaming, drop whitespace-only normal_text (the "\n"
++        # separators between consecutive <tool_call> blocks). Emitting them as
++        # content deltas interleaves text into the open tool-call stream, and
++        # clients that assemble tool arguments incrementally (e.g. Anthropic-
++        # protocol converters) drop argument fragments arriving after the
++        # text -> empty/truncated tool arguments.
++        # 09-11 hardened: suppress ALL normal_text once tool calls have
++        # started (non-ws text between tool_calls blocks also breaks
++        # incremental assemblers, e.g. new-api -> Anthropic).
++        _suppress_tc = bool(has_tool_calls.get(index))
++        if normal_text and _suppress_tc and normal_text.strip():
++            logger.warning(
++                "parallel-toolfix: dropped non-ws text after tool calls %r "
++                "(index=%s)", normal_text[:120], index,
++            )
++        if normal_text and not _suppress_tc:
+             choice_data = ChatCompletionResponseStreamChoice(
+                 index=index,
+                 delta=DeltaMessage(content=normal_text),

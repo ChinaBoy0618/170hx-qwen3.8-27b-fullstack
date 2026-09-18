@@ -1,0 +1,12 @@
+FROM golang:1.26.1-alpine@sha256:2389ebfa5b7f43eeafbd6be0c3700cc46690ef842ad962f6c5bd6be49ed82039 AS builder
+ENV GO111MODULE=on CGO_ENABLED=0 GOWORK=off GOPROXY=https://goproxy.cn,direct
+ENV GOOS=linux GOARCH=amd64 GOEXPERIMENT=greenteagc
+WORKDIR /build
+ADD go.mod go.sum ./
+ADD relaykit/go.mod ./relaykit/go.mod
+RUN go mod download
+COPY . .
+RUN go build -ldflags "-s -w -X 'github.com/QuantumNous/new-api/common.Version=fixtoolidx-0831-exempt'" -o new-api
+
+FROM new-api:fixtoolidx-0831
+COPY --from=builder /build/new-api /new-api

@@ -1,0 +1,44 @@
+--- a/managers/scheduler.py
++++ b/managers/scheduler.py
+@@ -4506,7 +4506,12 @@
+                 return
+             from sglang.srt.mem_cache.base_prefix_cache import EvictParams
+ 
+-            total = tree_cache.kv_cache.size
++            kv = getattr(tree_cache, "kv_cache", None)
++            total = (
++                kv.size
++                if kv is not None
++                else tree_cache.token_to_kv_pool_allocator.size_full
++            )
+             if usage >= 0.90:
+                 # >90%: immediately reclaim oldest 35%
+                 target = 0.35 * total
+--- a/mem_cache/unified_radix_cache.py
++++ b/mem_cache/unified_radix_cache.py
+@@ -162,6 +162,9 @@
+         self.req_to_token_pool = params.req_to_token_pool
+         self.token_to_kv_pool_allocator = params.token_to_kv_pool_allocator
+         self.disable = params.disable
++        self.ttl_watermark_enabled = (
++            (params.eviction_policy or "lru").lower() == "ttl_watermark"
++        )
+ 
+         if params.enable_metrics:
+             self.init_metrics_collector()
+@@ -282,6 +285,15 @@
+             f"Tree Core: {type(self.tree_core).__name__}"
+         )
+ 
++    def _ttl_token_usage(self) -> float:
++        """True pool occupancy (includes evictable radix tokens)."""
++        try:
++            total = self.token_to_kv_pool_allocator.size_full
++            avail = self.token_to_kv_pool_allocator.available_size()
++            return 1.0 - avail / total if total > 0 else 0.0
++        except Exception:
++            return 0.0
++
+     def _all_reduce_attn_groups(self, tensor: torch.Tensor, op):
+         reduced = False
+         for group in (self.attn_cp_group, self.attn_tp_group):

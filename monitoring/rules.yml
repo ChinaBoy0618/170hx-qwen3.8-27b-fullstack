@@ -1,0 +1,160 @@
+# 760T 可观测 · Prometheus 告警规则
+# 由看门狗脚本 (feishu-watch) 轮询这些 firing 状态并加签推飞书。
+groups:
+  - name: 760_workers
+    rules:
+      # 任一 worker 抓取失败（端口 down / OOM 退出）
+      - alert: WorkerDown
+        expr: up{job="sglang_worker"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          component: sglang
+        annotations:
+          summary: "SGLang worker {{ $labels.instance }} 离线"
+          description: "job=sglang_worker instance={{ $labels.instance }} 连续 2m scrape 失败，worker 可能已崩溃/OOM。"
+
+      # 网关抓取失败
+      - alert: GatewayDown
+        expr: up{job="gateway"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          component: gateway
+        annotations:
+          summary: "smg 网关 metrics 不可达"
+          description: "gateway(:29010) scrape 失败，控制面/数据面可能异常。"
+
+      # 缓存命中率塌方：近期有流量且命中率长期 < 0.2
+      # 空闲时 num_running_reqs 恒 0 → 门控关闭，不误报
+      - alert: CacheHitCollapse
+        expr: |
+          (sglang:cache_hit_rate < 0.2)
+          and (max_over_time(sglang:num_running_reqs[15m]) > 0)
+        for: 15m
+        labels:
+          severity: warning
+          component: sglang
+        annotations:
+          summary: "worker {{ $labels.instance }} 缓存命中率塌方"
+          description: "近 15m 有活跃请求但 cache_hit_rate < 0.2，KV 分层可能失效（HiCache/L3 落盘异常）。"
+
+      # 设备 KV 池 30m 内持续接近打满（OOM 前兆）
+      # 注: sglang:token_usage 在 0.5.18 上报恒 0(无信号), 改用 kv_available/max_total 反推
+      - alert: KVPoolNearFull
+        # 0911 gate: 池近满多由可驱逐暖缓存造成(空闲亦可>98%误报, 09-09 16:00 票全 NONE)。
+        # 改用非可驱逐 kv_used_tokens 作主信号, 仅运行请求 KV 逼近上限(真 OOM 风险)才 firing。
+        expr: max_over_time((sglang:kv_used_tokens/sglang:max_total_num_tokens)[30m:1m]) > 0.98
+        for: 10m
+        labels:
+          severity: warning
+          component: sglang
+        annotations:
+          summary: "worker {{ $labels.instance }} 设备 KV 池 >98%"
+          description: "近 30m 内设备 KV 池水位持续 >0.98，接近 OOM，注意 prefill 并发。"
+
+      # host KV 池压力下备份失败 → 已换出到 host 的 KV 被直接丢弃（真丢数据）
+      # host 池水位 ~99% 满在 write_through+LRU 下是稳态，不按水位告警（会永久 firing 刷屏）；
+      # 真正的事故信号 = dropped 计数开始增长（host 满且写不进去 → KV 被毁）
+      - alert: HostKVDropping
+        expr: increase(sglang:hicache_dropped_tokens_total[10m]) > 0
+        for: 10m
+        labels:
+          severity: warning
+          component: sglang
+        annotations:
+          summary: "worker {{ $labels.instance }} host KV 池丢损（备份失败被毁）"
+          description: "hicache_dropped_tokens_total 10m 内增长，host 池压力下 D→H 备份失败，部分已换出的 KV 被直接丢弃。注意 host 内存水位与 L2 池容量。"
+
+      # smg 侧 worker 不健康（网关健康检查视角, 与 WorkerDown scrape 失败互补）
+      - alert: SmgWorkerDown
+        expr: smg_worker_health < 1
+        for: 2m
+        labels:
+          severity: critical
+          component: gateway
+        annotations:
+          summary: "smg worker {{ $labels.worker }} 不健康"
+          description: "smg 网关健康检查判定该 worker down 持续 2m，流量已摘除，确认 worker 状态。"
+
+      # JSON 桥接源挂（new-api perf-metrics 不可达）
+      - alert: BridgeSourceDown
+        expr: newapi_up < 1
+        for: 5m
+        labels:
+          severity: warning
+          component: bridge
+        annotations:
+          summary: "JSON 桥接源不可达 (new-api)"
+          description: "newapi_up 持续 5m 为 0，对应服务指标停更（面板该行将断线）。"
+
+  - name: 760_host
+    rules:
+      # 宿主可用内存 < 10G（L2 host KV 池 + 系统余量告急）
+      - alert: HostRAMLow
+        expr: node_memory_MemAvailable_bytes < 10 * 1024 * 1024 * 1024
+        for: 5m
+        labels:
+          severity: critical
+          component: host
+        annotations:
+          summary: "760 宿主可用内存 < 10G"
+          description: "MemAvailable < 10G 持续 5m，L2 host KV 池挤占系统内存，有 OOM/swap 风险。"
+
+      # 宿主 CPU 过载
+      - alert: HostCPULoadHigh
+        expr: (avg_over_time(node_cpu_seconds_total{mode="idle"}[5m]) < 0.2)
+        for: 10m
+        labels:
+          severity: warning
+          component: host
+        annotations:
+          summary: "760 宿主 CPU 持续高载"
+          description: "idle 持续 <20% 达 10m，注意是否异常进程占核。"
+
+  # ===== 09-08 P1-1 补位(诊断 §4.3 + 优化轮)=====
+  - name: 760_capacity
+    rules:
+      # 宿主可用内存 < 60G(早期预警;HostRAMLow@10G 是临界档)
+      - alert: HostRAMTight
+        expr: node_memory_MemAvailable_bytes < 60 * 1024 * 1024 * 1024
+        for: 10m
+        labels:
+          severity: warning
+          component: host
+        annotations:
+          summary: "760 宿主可用内存 < 60G"
+          description: "MemAvailable < 60G 持续 10m,L2 host 池/系统内存趋紧,提前人工介入。"
+
+      # swap 用量 > 75%(09-08 曾 22.4/32G 超卖)
+      - alert: SwapHigh
+        expr: (1 - node_memory_SwapFree_bytes / node_memory_SwapTotal_bytes) > 0.75
+        for: 10m
+        labels:
+          severity: warning
+          component: host
+        annotations:
+          summary: "760 swap 占用 > 75%"
+          description: "匿名页被大量换出(scheduler 冷页),常伴随 L2 池超卖,查 ratio 配置。"
+
+      # /mnt/data 可用 < 10%(当前 89% 使用)
+      - alert: DataDiskNearFull
+        expr: node_filesystem_avail_bytes{mountpoint="/mnt/data"} / node_filesystem_size_bytes{mountpoint="/mnt/data"} < 0.10
+        for: 10m
+        labels:
+          severity: warning
+          component: host
+        annotations:
+          summary: "/mnt/data 余量 < 10%"
+          description: "镜像/权重盘将满,清理 comfyui/models 或扩容。"
+
+      # smg 健康检查间歇失败抖动(09-08 曾 3h 400 次,当时 timeout=2s)
+      - alert: WorkerHealthFlap
+        expr: increase(smg_worker_health_checks_total{result="failure"}[10m]) > 20
+        for: 5m
+        labels:
+          severity: warning
+          component: gateway
+        annotations:
+          summary: "smg 健康检查 10m 内失败 > 20 次"
+          description: "worker /health 间歇超时(prefill 竞争),关注是否再现假熔断抢流。"

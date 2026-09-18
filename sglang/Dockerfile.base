@@ -1,0 +1,65 @@
+# 170HX fullstack — SGLang base image
+# = lmsysorg/sglang v0.5.19（digest 锁死）+ 有序补丁链 0001..0005（分层 TTL 保留 + tier4 前缀 pin）
+#
+# 构建（仓库根目录）:
+#   docker build -f sglang/Dockerfile.base -t sglang:dflash2-fullstack-base .
+#
+# 构建期硬门:
+#   G1  官方镜像内源码树的 11 个基线文件与 0.5.19 pristine 基线 md5 全等（基线漂移即失败）
+#   G2  0001..0005 以 patch -p1 干净应用（任何 fuzz/offset 漂移即失败）
+#   G3  补丁后 11 文件与 760 生产 ttl 树 md5 全等（与现役生产树字节级一致）
+#   G4  import 冒烟: DFlash2 / CandidateSelector / TTLWatermarkStrategy / flashinfer>=0.6.18
+FROM lmsysorg/sglang:v0.5.19@sha256:e6238090791a938ab86dd21a9a6394192dad15237e815df557cf83524d54b813
+
+ENV PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
+ENV SETUPTOOLS_SCM_PRETEND_VERSION=0.5.19.dev20260911
+
+COPY sglang/patches/ /tmp/patches/
+
+RUN set -eux; \
+    SRT=/sgl-workspace/sglang/python/sglang/srt; \
+    command -v patch >/dev/null 2>&1 \
+      || { apt-get update && apt-get install -y --no-install-recommends patch && rm -rf /var/lib/apt/lists/*; }; \
+    cd "$SRT"; \
+    echo "=== G1: pristine 0.5.19 baseline md5 gate ==="; \
+    printf '%s\n' \
+      "52af29124f61f8078d9bfdf2ea9fa450  entrypoints/http_server.py" \
+      "565a13ed78a944e49c39536b829c1201  managers/io_struct.py" \
+      "4280ee769f3a9b7c91a7dae837b6554e  managers/scheduler.py" \
+      "cdfd81712cadcdb2fca48960bfcf9b9f  managers/tokenizer_control_mixin.py" \
+      "34894032503ad199f12dec9ca5705d7c  mem_cache/evict_policy.py" \
+      "ddee1ccf2f5273100c8559384515c5c9  mem_cache/hiradix_cache.py" \
+      "10b66267e27bef2f2b41e7ab7cc604e4  mem_cache/radix_cache.py" \
+      "a19fb75692345875e1be375c3ed37fe3  mem_cache/unified_cache/unified_tree_core.py" \
+      "ceea1ae8385307ee5f9651cddbb04052  mem_cache/unified_radix_cache.py" \
+      "1b2a3abc3f374952d958a3bbd04d8974  mem_cache/utils.py" \
+      "e8a94b94489de2202fcd6d113fb48046  server_args.py" \
+      | md5sum -c -; \
+    echo "=== G2: apply 0001..0005 (patch -p1) ==="; \
+    for p in /tmp/patches/0001-*.patch /tmp/patches/0002-*.patch /tmp/patches/0003-*.patch /tmp/patches/0004-*.patch /tmp/patches/0005-*.patch; do \
+      patch -p1 < "$p"; echo "applied: $p"; \
+    done; \
+    echo "=== G3: final ttl-tree md5 gate (== 760 production tree) ==="; \
+    printf '%s\n' \
+      "6e80234187ef619b4e450cbfdde57193  entrypoints/http_server.py" \
+      "e7c9149281c0ecae155f07eb24eefed6  managers/io_struct.py" \
+      "d20640cf8731e6470267cca6e0e22ef6  managers/scheduler.py" \
+      "66602bf1e4b1f7c193bc41a2fa0a4d85  managers/tokenizer_control_mixin.py" \
+      "e5524152d27ac191f6f754975436cfad  mem_cache/evict_policy.py" \
+      "315684c4eb385dba5ee373dcc8ccc112  mem_cache/hiradix_cache.py" \
+      "0e7c6fe30e4848e41ff1ef87b014db3d  mem_cache/radix_cache.py" \
+      "dc70b8934265ee8151da880d824420fb  mem_cache/unified_cache/unified_tree_core.py" \
+      "bc3d6c9f181ae610635370c2498ce5b9  mem_cache/unified_radix_cache.py" \
+      "790ea816dcc721b65d176af74240b3a1  mem_cache/utils.py" \
+      "b026b8b5deefcb9fc2986ecfeb8c5814  server_args.py" \
+      | md5sum -c -; \
+    pip uninstall -y sglang || true; \
+    cd /sgl-workspace/sglang/python && pip install --no-deps --no-build-isolation -e .; \
+    echo "=== G4: import smoke ==="; \
+    python -c "from sglang.srt.models.dflash import DFlash2DraftModel; print('DFlash2DraftModel OK')"; \
+    python -c "from sglang.srt.models.dflash import CandidateSelector; print('CandidateSelector OK')"; \
+    python -c "from sglang.srt.mem_cache.evict_policy import TTLWatermarkStrategy; print('TTLWatermarkStrategy OK')"; \
+    python -c "from sglang.srt.mem_cache.utils import get_eviction_strategy; s=get_eviction_strategy('ttl_watermark'); print('factory OK', type(s).__name__)"; \
+    python -c "from sglang.kernels.ops.speculative.dflash import selector_walk_triton; print('triton kernel OK')"; \
+    python -c "import torch; print('torch', torch.__version__)"; \
+    python -c "import re, flashinfer; m = re.match(r'(\d+)\.(\d+)\.(\d+)', flashinfer.__version__); assert m and tuple(int(x) for x in m.groups()) >= (0, 6, 18), flashinfer.__version__; print('flashinfer >= 0.6.18 OK', flashinfer.__version__)"

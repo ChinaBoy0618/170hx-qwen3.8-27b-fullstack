@@ -1,0 +1,711 @@
+diff -ruN antgroup-main-0821/src/middleware.rs antgroup/sgl-model-gateway/src/middleware.rs
+--- antgroup-main-0821/src/middleware.rs	2026-08-31 00:50:51.000000000 +0800
++++ antgroup/sgl-model-gateway/src/middleware.rs	2026-08-20 22:53:01.000000000 +0800
+@@ -147,48 +147,6 @@
+     Ok(next.run(request).await)
+ }
+ 
+-/// Middleware to validate an Anthropic client against the configured API key.
+-///
+-/// Accepts either `Authorization: Bearer <key>` or `x-api-key: <key>`:
+-/// Anthropic-native clients (and the new-api `anthropic` channel adaptor)
+-/// authenticate with `x-api-key`, which the Bearer-only `auth_middleware`
+-/// would reject with 401. Same constant-time comparison semantics as
+-/// `auth_middleware`; with no API key configured the request is let through.
+-pub async fn auth_middleware_anthropic(
+-    State(auth_config): State<AuthConfig>,
+-    request: Request<Body>,
+-    next: Next,
+-) -> Result<Response, StatusCode> {
+-    if let Some(expected_key) = &auth_config.api_key {
+-        let bearer = request
+-            .headers()
+-            .get(header::AUTHORIZATION)
+-            .and_then(|h| h.to_str().ok())
+-            .and_then(|v| v.strip_prefix("Bearer "));
+-
+-        let x_api_key = request
+-            .headers()
+-            .get("x-api-key")
+-            .and_then(|h| h.to_str().ok());
+-
+-        let token = match bearer.or(x_api_key) {
+-            Some(t) => t,
+-            None => return Err(StatusCode::UNAUTHORIZED),
+-        };
+-
+-        let token_bytes = token.as_bytes();
+-        let expected_bytes = expected_key.as_bytes();
+-        if token_bytes.len() != expected_bytes.len() {
+-            return Err(StatusCode::UNAUTHORIZED);
+-        }
+-        if token_bytes.ct_eq(expected_bytes).unwrap_u8() != 1 {
+-            return Err(StatusCode::UNAUTHORIZED);
+-        }
+-    }
+-
+-    Ok(next.run(request).await)
+-}
+-
+ /// Alphanumeric characters for request ID generation (as bytes for O(1) indexing)
+ const REQUEST_ID_CHARS: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+ 
+diff -ruN antgroup-main-0821/src/routers/http/router.rs antgroup/sgl-model-gateway/src/routers/http/router.rs
+--- antgroup-main-0821/src/routers/http/router.rs	2026-08-31 00:50:51.000000000 +0800
++++ antgroup/sgl-model-gateway/src/routers/http/router.rs	2026-08-20 22:53:01.000000000 +0800
+@@ -191,21 +191,6 @@
+         Some(available[idx].clone())
+     }
+ 
+-    /// Recursively drop keys whose value is `null`. Rust `Option<T> = None`
+-    /// serializes to `null` without `skip_serializing_if`, and upstream strict
+-    /// pydantic fields (e.g. `ChatCompletionRequest.stream: bool`) reject null
+-    /// with a 400. Dropping the keys lets the worker apply its schema defaults.
+-    fn strip_nulls(v: &mut serde_json::Value) {
+-        match v {
+-            serde_json::Value::Object(m) => {
+-                m.values_mut().for_each(Self::strip_nulls);
+-                m.retain(|_k, val| !matches!(val, serde_json::Value::Null));
+-            }
+-            serde_json::Value::Array(a) => a.iter_mut().for_each(Self::strip_nulls),
+-            _ => {}
+-        }
+-    }
+-
+     pub async fn route_typed_request<T: GenerationRequest + serde::Serialize + Clone>(
+         &self,
+         headers: Option<&HeaderMap>,
+@@ -336,7 +321,7 @@
+         // mask "200-then-broken" workers — every request would tick a
+         // success before the stream had a chance to error out.
+         if !is_stream {
+-            worker.record_outcome(!status.is_client_error());
++            worker.record_outcome(status.is_success());
+         }
+ 
+         // Record worker errors for server errors (5xx)
+@@ -514,17 +499,6 @@
+         // Static key string to avoid per-request allocations
+         const DP_RANK_KEY: &str = "data_parallel_rank";
+ 
+-        let mut json_val = match serde_json::to_value(typed_req) {
+-            Ok(j) => j,
+-            Err(e) => {
+-                return error::bad_request(
+-                    "serialization_failed",
+-                    format!("Convert into serde_json::Value failed: {}", e),
+-                );
+-            }
+-        };
+-        Self::strip_nulls(&mut json_val);
+-
+         let mut request_builder = if self.dp_aware {
+             let (worker_url_prefix, dp_rank) = match Self::extract_dp_rank(worker_url) {
+                 Ok(tup) => tup,
+@@ -537,6 +511,16 @@
+                 }
+             };
+ 
++            let mut json_val = match serde_json::to_value(typed_req) {
++                Ok(j) => j,
++                Err(e) => {
++                    return error::bad_request(
++                        "serialization_failed",
++                        format!("Convert into serde_json::Value failed: {}", e),
++                    );
++                }
++            };
++
+             if let Some(map) = json_val.as_object_mut() {
+                 // Use static key string to avoid allocation
+                 map.insert(DP_RANK_KEY.to_string(), serde_json::json!(dp_rank));
+@@ -560,7 +544,7 @@
+         } else {
+             self.client
+                 .post(format!("{}{}", worker_url, route))
+-                .json(&json_val)
++                .json(typed_req) // Use json() directly with typed request
+         };
+ 
+         if let Some(key) = api_key {
+@@ -648,7 +632,7 @@
+                 worker.clone(),
+                 worker_url.to_string(),
+             );
+-            if status.is_server_error() {
++            if !status.is_success() {
+                 tracked.mark_errored();
+             }
+             let body = Body::from_stream(tracked);
+@@ -666,265 +650,6 @@
+         }
+     }
+ 
+-    /// Raw passthrough for Anthropic Messages (`/v1/messages`).
+-    ///
+-    /// The request body is forwarded verbatim — never deserialized into a
+-    /// typed struct (that is the root of the null-400 class of bugs) —
+-    /// mirroring the upstream passthrough design (sglang #20566). Only three
+-    /// fields are peeked out of the raw bytes: `model` (worker selection),
+-    /// `stream` (breaker/metrics shape) and the full conversation text
+-    /// (cache_aware affinity). Everything else — thinking blocks, tool
+-    /// blocks, beta flags — reaches the worker untouched.
+-    async fn route_anthropic_messages_raw(
+-        &self,
+-        headers: Option<&HeaderMap>,
+-        raw_body: &bytes::Bytes,
+-    ) -> Response {
+-        // Peek-only parse: a failure here is non-fatal and just degrades
+-        // routing affinity (no model -> default policy, no text -> no key).
+-        let parsed: serde_json::Value =
+-            serde_json::from_slice(raw_body).unwrap_or(serde_json::Value::Null);
+-
+-        let model: Option<String> = parsed
+-            .get("model")
+-            .and_then(|v| v.as_str())
+-            .map(|s| s.to_string());
+-        let is_stream = parsed
+-            .get("stream")
+-            .and_then(|v| v.as_bool())
+-            .unwrap_or(false);
+-        let text = extract_anthropic_messages_text(&parsed);
+-        let model_id = model.as_deref();
+-        let model_label = model_id.unwrap_or(UNKNOWN_MODEL_ID);
+-        let text_ref: Option<&str> = text.as_deref();
+-        let endpoint = "other";
+-
+-        let start = Instant::now();
+-
+-        // Record request start (Layer 2)
+-        Metrics::record_router_request(
+-            metrics_labels::ROUTER_HTTP,
+-            metrics_labels::BACKEND_REGULAR,
+-            metrics_labels::CONNECTION_HTTP,
+-            model_label,
+-            endpoint,
+-            bool_to_static_str(is_stream),
+-        );
+-
+-        let response = RetryExecutor::execute_response_with_retry(
+-            &self.retry_config,
+-            // operation per attempt
+-            |_: u32| async {
+-                let res = self
+-                    .route_anthropic_messages_once(
+-                        headers,
+-                        raw_body,
+-                        model_id,
+-                        is_stream,
+-                        text_ref,
+-                    )
+-                    .await;
+-
+-                Metrics::record_router_upstream_response(
+-                    metrics_labels::ROUTER_HTTP,
+-                    res.status().as_u16(),
+-                    extract_error_code_from_response(&res),
+-                );
+-
+-                res
+-            },
+-            // should_retry predicate
+-            |res, _attempt| is_retryable_status(res.status()),
+-            // on_backoff hook
+-            |delay, attempt| {
+-                // Layer 3 worker metrics
+-                Metrics::record_worker_retry(metrics_labels::WORKER_REGULAR, endpoint);
+-                Metrics::record_worker_retry_backoff(attempt, delay);
+-            },
+-            // on_exhausted hook
+-            || {
+-                Metrics::record_worker_retries_exhausted(
+-                    metrics_labels::WORKER_REGULAR,
+-                    endpoint,
+-                );
+-            },
+-        )
+-        .await;
+-
+-        if response.status().is_success() {
+-            let duration = start.elapsed();
+-            Metrics::record_router_duration(
+-                metrics_labels::ROUTER_HTTP,
+-                metrics_labels::BACKEND_REGULAR,
+-                metrics_labels::CONNECTION_HTTP,
+-                model_label,
+-                endpoint,
+-                duration,
+-            );
+-        } else if !is_retryable_status(response.status()) {
+-            Metrics::record_router_error(
+-                metrics_labels::ROUTER_HTTP,
+-                metrics_labels::BACKEND_REGULAR,
+-                metrics_labels::CONNECTION_HTTP,
+-                model_label,
+-                endpoint,
+-                error_type_from_status(response.status()),
+-            );
+-        }
+-
+-        response
+-    }
+-
+-    async fn route_anthropic_messages_once(
+-        &self,
+-        headers: Option<&HeaderMap>,
+-        raw_body: &bytes::Bytes,
+-        model_id: Option<&str>,
+-        is_stream: bool,
+-        text: Option<&str>,
+-    ) -> Response {
+-        let worker = match self
+-            .select_worker_for_model(model_id, text, headers)
+-            .await
+-        {
+-            Some(w) => w,
+-            None => {
+-                return error::service_unavailable(
+-                    "no_available_workers",
+-                    "No available workers (all circuits open or unhealthy)",
+-                );
+-            }
+-        };
+-
+-        let policy = match model_id {
+-            Some(model) => self.policy_registry.get_policy_or_default(model),
+-            None => self.policy_registry.get_default_policy(),
+-        };
+-
+-        let load_guard = ["cache_aware", "manual"]
+-            .contains(&policy.name())
+-            .then(|| WorkerLoadGuard::new(worker.clone(), headers));
+-
+-        // Note: Using borrowed reference avoids heap allocation
+-        events::RequestSentEvent { url: worker.url() }.emit();
+-        let mut headers_with_trace = headers.cloned().unwrap_or_default();
+-        inject_trace_context_http(&mut headers_with_trace);
+-        let headers = Some(&headers_with_trace);
+-
+-        let worker_url = worker.url();
+-        let api_key = worker.api_key().clone();
+-
+-        let mut request_builder = self
+-            .client
+-            .post(format!("{}/v1/messages", worker_url))
+-            .header(CONTENT_TYPE, "application/json")
+-            .body(raw_body.clone());
+-
+-        if let Some(key) = api_key {
+-            // The worker's native Anthropic endpoint only accepts
+-            // `Authorization: Bearer` (`x-api-key` -> 401, upstream #35720
+-            // unmerged), so the worker key is injected unconditionally.
+-            let mut auth_header = String::with_capacity(7 + key.len());
+-            auth_header.push_str("Bearer ");
+-            auth_header.push_str(&key);
+-            request_builder = request_builder.header("Authorization", auth_header);
+-        }
+-
+-        if let Some(headers) = headers {
+-            for (name, value) in headers {
+-                // The gateway API key is NOT the worker API key in general:
+-                // never leak the inbound `authorization` header downstream —
+-                // the Bearer above is the only one the worker will accept.
+-                if name.as_str().eq_ignore_ascii_case("authorization") {
+-                    continue;
+-                }
+-                if header_utils::should_forward_request_header(name.as_str()) {
+-                    request_builder = request_builder.header(name, value);
+-                }
+-            }
+-        }
+-
+-        let res = match request_builder.send().await {
+-            Ok(res) => res,
+-            Err(e) => {
+-                error!(
+-                    "Failed to send anthropic request worker_url={} route=/v1/messages error={}",
+-                    worker_url, e
+-                );
+-
+-                // Same reasoning as `send_typed_request`: no tracked stream
+-                // exists when send() fails, so record the streaming failure
+-                // here to keep the breaker honest.
+-                if is_stream {
+-                    worker.record_outcome(false);
+-                }
+-                return convert_reqwest_error(e);
+-            }
+-        };
+-
+-        let status = StatusCode::from_u16(res.status().as_u16())
+-            .unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
+-
+-        events::RequestReceivedEvent {}.emit();
+-
+-        // For streaming responses the wrapped body records the
+-        // circuit-breaker outcome when the stream terminates.
+-        if !is_stream {
+-            worker.record_outcome(!status.is_client_error());
+-        }
+-
+-        if status.is_server_error() {
+-            Metrics::record_worker_error(
+-                metrics_labels::WORKER_REGULAR,
+-                metrics_labels::CONNECTION_HTTP,
+-                error_type_from_status(status),
+-            );
+-        }
+-
+-        if !is_stream {
+-            let response_headers = header_utils::preserve_response_headers(res.headers());
+-
+-            match res.bytes().await {
+-                Ok(body) => {
+-                    let mut response = Response::new(Body::from(body));
+-                    *response.status_mut() = status;
+-                    *response.headers_mut() = response_headers;
+-                    response
+-                }
+-                Err(e) => {
+-                    let error_msg = format!("Failed to get response body: {}", e);
+-                    error::internal_error("read_response_body_failed", error_msg)
+-                }
+-            }
+-        } else {
+-            let mut response_headers = header_utils::preserve_response_headers(res.headers());
+-            response_headers.insert(
+-                CONTENT_TYPE,
+-                HeaderValue::from_static("text/event-stream"),
+-            );
+-
+-            let mut tracked = BreakerTrackedStream::new(
+-                res.bytes_stream(),
+-                worker.clone(),
+-                worker_url.to_string(),
+-            );
+-            if status.is_server_error() {
+-                tracked.mark_errored();
+-            }
+-            let body = Body::from_stream(tracked);
+-
+-            let mut response = Response::new(body);
+-            *response.status_mut() = status;
+-            *response.headers_mut() = response_headers;
+-
+-            // Attach load guard to response body for proper RAII lifecycle
+-            if let Some(guard) = load_guard {
+-                response = AttachedBody::wrap_response(response, guard);
+-            }
+-            response
+-        }
+-    }
+-
+     async fn build_rerank_response(
+         req: &RerankRequest,
+         response: Response,
+@@ -945,90 +670,6 @@
+     }
+ }
+ 
+-/// Build the cache_aware routing text for an Anthropic Messages body: the
+-/// concatenation of every text-bearing block across `system` and all
+-/// `messages` (text, tool_use, tool_result, thinking). Mirrors what
+-/// `extract_text_for_routing` does for OpenAI chat bodies — the *full*
+-/// conversation, not just the first message, so KV-prefix affinity stays
+-/// meaningful for multi-turn sessions (see sglang #26263). Returns `None`
+-/// when there is no text to route on.
+-fn extract_anthropic_messages_text(parsed: &serde_json::Value) -> Option<String> {
+-    fn block_text_into(out: &mut String, block: &serde_json::Value) {
+-        match block.get("type").and_then(|t| t.as_str()) {
+-            Some("text") => {
+-                if let Some(t) = block.get("text").and_then(|t| t.as_str()) {
+-                    out.push_str(t);
+-                    out.push('\n');
+-                }
+-            }
+-            Some("tool_use") => {
+-                if let Some(t) = block.get("name").and_then(|t| t.as_str()) {
+-                    out.push_str(t);
+-                    out.push_str(":");
+-                }
+-                if let Some(inp) = block.get("input") {
+-                    out.push_str(&inp.to_string());
+-                    out.push('\n');
+-                }
+-            }
+-            Some("tool_result") => {
+-                if let Some(c) = block.get("content") {
+-                    if c.is_string() {
+-                        out.push_str(c.as_str().unwrap_or(""));
+-                    } else if let Some(arr) = c.as_array() {
+-                        for item in arr {
+-                            block_text_into(out, item);
+-                        }
+-                    }
+-                    out.push('\n');
+-                }
+-            }
+-            Some("thinking") => {
+-                if let Some(t) = block.get("thinking").and_then(|t| t.as_str()) {
+-                    out.push_str(t);
+-                    out.push('\n');
+-                }
+-            }
+-            _ => {}
+-        }
+-    }
+-
+-    let mut out = String::new();
+-
+-    // `system` may be a plain string or an array of content blocks
+-    if let Some(system) = parsed.get("system") {
+-        if system.is_string() {
+-            out.push_str(system.as_str().unwrap_or(""));
+-            out.push('\n');
+-        } else if let Some(arr) = system.as_array() {
+-            for block in arr {
+-                block_text_into(&mut out, block);
+-            }
+-        }
+-    }
+-
+-    if let Some(messages) = parsed.get("messages").and_then(|m| m.as_array()) {
+-        for msg in messages {
+-            if let Some(content) = msg.get("content") {
+-                if content.is_string() {
+-                    out.push_str(content.as_str().unwrap_or(""));
+-                    out.push('\n');
+-                } else if let Some(blocks) = content.as_array() {
+-                    for block in blocks {
+-                        block_text_into(&mut out, block);
+-                    }
+-                }
+-            }
+-        }
+-    }
+-
+-    if out.is_empty() {
+-        None
+-    } else {
+-        Some(out)
+-    }
+-}
+-
+ fn convert_reqwest_error(e: reqwest::Error) -> Response {
+     let url = e
+         .url()
+@@ -1125,14 +766,6 @@
+             .await
+     }
+ 
+-    async fn route_anthropic_messages(
+-        &self,
+-        headers: Option<&HeaderMap>,
+-        body: &bytes::Bytes,
+-    ) -> Response {
+-        self.route_anthropic_messages_raw(headers, body).await
+-    }
+-
+     async fn route_completion(
+         &self,
+         headers: Option<&HeaderMap>,
+diff -ruN antgroup-main-0821/src/routers/mod.rs antgroup/sgl-model-gateway/src/routers/mod.rs
+--- antgroup-main-0821/src/routers/mod.rs	2026-08-31 00:50:51.000000000 +0800
++++ antgroup/sgl-model-gateway/src/routers/mod.rs	2026-08-20 22:53:01.000000000 +0800
+@@ -197,23 +197,6 @@
+         (StatusCode::NOT_IMPLEMENTED, "Rerank not implemented").into_response()
+     }
+ 
+-    /// Route an Anthropic Messages request (`POST /v1/messages`) as raw
+-    /// bytes. The body is intentionally never deserialized into a typed
+-    /// request struct — only `model`, `stream` and the conversation text are
+-    /// peeked for worker selection — and the original bytes are forwarded
+-    /// verbatim to the worker's native `/v1/messages` endpoint.
+-    async fn route_anthropic_messages(
+-        &self,
+-        _headers: Option<&HeaderMap>,
+-        _body: &bytes::Bytes,
+-    ) -> Response {
+-        (
+-            StatusCode::NOT_IMPLEMENTED,
+-            "Anthropic messages endpoint not implemented",
+-        )
+-            .into_response()
+-    }
+-
+     /// Get router type name
+     fn router_type(&self) -> &'static str;
+ 
+diff -ruN antgroup-main-0821/src/routers/openai/responses/non_streaming.rs antgroup/sgl-model-gateway/src/routers/openai/responses/non_streaming.rs
+--- antgroup-main-0821/src/routers/openai/responses/non_streaming.rs	2026-08-30 19:17:43.000000000 +0800
++++ antgroup/sgl-model-gateway/src/routers/openai/responses/non_streaming.rs	2026-08-20 22:53:01.000000000 +0800
+@@ -116,7 +116,7 @@
+             }
+         };
+ 
+-        if response.status().is_server_error() {
++        if !response.status().is_success() {
+             worker.circuit_breaker().record_failure();
+             let status = StatusCode::from_u16(response.status().as_u16())
+                 .unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
+diff -ruN antgroup-main-0821/src/routers/openai/responses/streaming.rs antgroup/sgl-model-gateway/src/routers/openai/responses/streaming.rs
+--- antgroup-main-0821/src/routers/openai/responses/streaming.rs	2026-08-30 19:17:43.000000000 +0800
++++ antgroup/sgl-model-gateway/src/routers/openai/responses/streaming.rs	2026-08-20 22:53:01.000000000 +0800
+@@ -864,7 +864,7 @@
+                 }
+             };
+ 
+-            if response.status().is_server_error() {
++            if !response.status().is_success() {
+                 worker_for_breaker.circuit_breaker().record_failure();
+                 let status = response.status();
+                 let body = response
+diff -ruN antgroup-main-0821/src/routers/openai/router.rs antgroup/sgl-model-gateway/src/routers/openai/router.rs
+--- antgroup-main-0821/src/routers/openai/router.rs	2026-08-30 19:17:43.000000000 +0800
++++ antgroup/sgl-model-gateway/src/routers/openai/router.rs	2026-08-20 22:53:01.000000000 +0800
+@@ -128,22 +128,6 @@
+     }
+ }
+ 
+-
+-/// Recursively drop keys whose value is `null`. Rust `Option<T> = None`
+-/// serializes to `null` without `skip_serializing_if`, and upstream strict
+-/// pydantic fields (e.g. `ChatCompletionRequest.stream: bool`) reject null.
+-/// Objects/arrays left empty are pruned.
+-fn strip_nulls(v: &mut Value) {
+-    match v {
+-        Value::Object(m) => {
+-            m.values_mut().for_each(strip_nulls);
+-            m.retain(|_k, val| !matches!(val, Value::Null));
+-        }
+-        Value::Array(a) => a.iter_mut().for_each(strip_nulls),
+-        _ => {}
+-    }
+-}
+-
+ impl OpenAIRouter {
+     const MAX_CONVERSATION_HISTORY_ITEMS: usize = 100;
+ 
+@@ -552,8 +536,6 @@
+             return error_responses::bad_request(format!("Provider transform error: {}", e));
+         }
+ 
+-        strip_nulls(&mut payload);
+-
+         let mut ctx = RequestContext::for_chat(
+             Arc::new(body.clone()),
+             headers.cloned(),
+@@ -940,8 +922,6 @@
+             return error_responses::bad_request(format!("Provider transform error: {}", e));
+         }
+ 
+-        strip_nulls(&mut payload);
+-
+         let mut ctx = RequestContext::for_responses(
+             Arc::new(body.clone()),
+             headers.cloned(),
+diff -ruN antgroup-main-0821/src/routers/router_manager.rs antgroup/sgl-model-gateway/src/routers/router_manager.rs
+--- antgroup-main-0821/src/routers/router_manager.rs	2026-08-31 00:53:50.000000000 +0800
++++ antgroup/sgl-model-gateway/src/routers/router_manager.rs	2026-08-20 22:53:01.000000000 +0800
+@@ -559,44 +559,6 @@
+         }
+     }
+ 
+-    async fn route_anthropic_messages(
+-        &self,
+-        headers: Option<&HeaderMap>,
+-        body: &bytes::Bytes,
+-    ) -> Response {
+-        // Peek the model out of the raw body for IGW resolution, same as
+-        // route_chat does from the typed request.
+-        let body_model: Option<String> = serde_json::from_slice::<Value>(body)
+-            .ok()
+-            .and_then(|v| v.get("model").cloned())
+-            .and_then(|m| m.as_str().map(String::from));
+-        let body_model_ref: Option<&str> = body_model.as_deref();
+-
+-        let effective_model_id = if self.enable_igw {
+-            match self.resolve_model_id(body_model_ref) {
+-                Ok(id) => Some(id),
+-                Err(err_response) => return *err_response,
+-            }
+-        } else {
+-            None
+-        };
+-
+-        let router =
+-            self.select_router_for_request(headers, effective_model_id.as_deref().or(body_model_ref));
+-
+-        if let Some(router) = router {
+-            router
+-                .route_anthropic_messages(headers, body)
+-                .await
+-        } else {
+-            (
+-                StatusCode::NOT_FOUND,
+-                "No router available to handle anthropic messages request",
+-            )
+-                .into_response()
+-        }
+-    }
+-
+     async fn route_completion(
+         &self,
+         headers: Option<&HeaderMap>,
+diff -ruN antgroup-main-0821/src/server.rs antgroup/sgl-model-gateway/src/server.rs
+--- antgroup-main-0821/src/server.rs	2026-08-31 00:53:50.000000000 +0800
++++ antgroup/sgl-model-gateway/src/server.rs	2026-08-20 22:53:01.000000000 +0800
+@@ -192,17 +192,6 @@
+         .await
+ }
+ 
+-async fn v1_messages(
+-    State(state): State<Arc<AppState>>,
+-    headers: http::HeaderMap,
+-    body: axum::body::Bytes,
+-) -> Response {
+-    state
+-        .router
+-        .route_anthropic_messages(Some(&headers), &body)
+-        .await
+-}
+-
+ async fn v1_completions(
+     State(state): State<Arc<AppState>>,
+     headers: http::HeaderMap,
+@@ -601,27 +590,6 @@
+             middleware::wasm_middleware,
+         ));
+ 
+-    // Anthropic Messages passthrough: separate route tree with its own auth
+-    // layer. Anthropic-native clients send `x-api-key` (the new-api
+-    // `anthropic` channel adaptor does too), which the shared Bearer-only
+-    // `auth_middleware` would 401. Stacking another auth layer onto
+-    // `protected_routes` is impossible — layers run in registration order
+-    // and the Bearer check fires first — so the route lives on its own tree.
+-    let ant_routes = Router::new()
+-        .route("/v1/messages", post(v1_messages))
+-        .route_layer(axum::middleware::from_fn_with_state(
+-            app_state.clone(),
+-            middleware::concurrency_limit_middleware,
+-        ))
+-        .route_layer(axum::middleware::from_fn_with_state(
+-            auth_config.clone(),
+-            middleware::auth_middleware_anthropic,
+-        ))
+-        .route_layer(axum::middleware::from_fn_with_state(
+-            app_state.clone(),
+-            middleware::wasm_middleware,
+-        ));
+-
+     let public_routes = Router::new()
+         .route("/liveness", get(liveness))
+         .route("/readiness", get(readiness))
+@@ -707,7 +675,6 @@
+ 
+     Router::new()
+         .merge(protected_routes)
+-        .merge(ant_routes)
+         .merge(public_routes)
+         .merge(admin_routes)
+         .merge(worker_routes)

@@ -1,0 +1,85 @@
+--- a/mem_cache/unified_cache/unified_tree_core.py
++++ b/mem_cache/unified_cache/unified_tree_core.py
+@@ -405,6 +405,8 @@
+         self.has_swa_host_pool = False
+         self.enable_session_radix_cache = params.enable_session_radix_cache
+         self.eviction_strategy = get_eviction_strategy(params.eviction_policy.lower())
++        # Optional TTL-stamp callback (set by the cache when
++        self._ttl_stamper = None
+ 
+         # ``device`` is derived from the construction-time allocator; the
+         # allocator/pool themselves are owned by the cache, not the tree.
+@@ -601,6 +603,8 @@
+     def _new_node(self, priority: int = 0) -> UnifiedTreeNode:
+         """Create and register a tree node in the arena."""
+         node = UnifiedTreeNode(self.component_types, priority=priority)
++        if self._ttl_stamper is not None:
++            self._ttl_stamper(node, promote=False)
+         self._register_node(node)
+         return node
+ 
+@@ -911,6 +915,8 @@
+         if self.is_write_back:
+             return False
+         node.hit_count += 1
++        if self._ttl_stamper is not None:
++            self._ttl_stamper(node, promote=(node.hit_count >= 2))
+ 
+         if self.enable_external_cache_linker:
+             return (
+@@ -1165,6 +1171,8 @@
+         new_node.hit_count = child.hit_count
+         new_node.external_cache_stored = child.external_cache_stored
+         new_node.creation_time = child.creation_time
++        new_node.tier = getattr(child, "tier", 1)
++        new_node.expire_at = getattr(child, "expire_at", None)
+         # Split fragments stay on the anchor's root path for the ack's walk.
+         new_node.load_back_pending_id = child.load_back_pending_id
+ 
+--- a/mem_cache/unified_radix_cache.py
++++ b/mem_cache/unified_radix_cache.py
+@@ -211,6 +211,9 @@
+         # Components execute boundary actions through the tree core.
+         for component in self.components.values():
+             component.tree_core = self.tree_core
++        # TTL countdown stamping on node create/hit (no-op unless
++        # ttl_watermark is the active policy).
++        self.tree_core._ttl_stamper = self._ttl_stamp
+ 
+         # Session ref tracking (--enable-session-radix-cache).
+         self.session_refs = UnifiedSessionRefTracker(
+@@ -294,6 +297,34 @@
+         except Exception:
+             return 0.0
+ 
++    def _ttl_secs_for_usage(self, usage: float) -> int:
++        # watermark bands -> retention TTL (retention shrinks as pool fills)
++        if usage < 0.35:
++            return 43200  # hot band (25-35%): 12h
++        if usage < 0.75:
++            return 14400  # session band: 4h
++        if usage < 0.80:
++            return 1800  # >75%: 30min countdown
++        if usage < 0.90:
++            return 300  # >80%: 5min countdown
++        return 0  # >90%: immediate reclaim
++
++    def _ttl_stamp(self, node, promote: bool = False) -> None:
++        """Stamp/refresh tier + expire_at (TTLWatermarkStrategy reads
++        both via getattr). promote=True upgrades a re-hit shared prefix
++        to tier 2 (evicted last). No-op unless ttl_watermark is on.
++        """
++        if not self.ttl_watermark_enabled:
++            return
++        try:
++            if promote and getattr(node, "tier", 1) < 2:
++                node.tier = 2
++            node.expire_at = time.monotonic() + self._ttl_secs_for_usage(
++                self._ttl_token_usage()
++            )
++        except Exception:
++            pass
++
+     def _all_reduce_attn_groups(self, tensor: torch.Tensor, op):
+         reduced = False
+         for group in (self.attn_cp_group, self.attn_tp_group):
