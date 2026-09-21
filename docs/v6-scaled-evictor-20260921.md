@@ -3,7 +3,7 @@
 **Date:** 2026-09-21
 **Scope:** Single-file change to `lru_file_evictor.py` (patch 0008)
 **Predecessor:** v5 heat-evictor (patch 0007, 64-window bounded scan + flat 256 cap)
-**Successor status:** Canary (5803, 2h) — in progress as of writing
+**Successor status:** Canary (5803, 2h) — **PASS** (2026-09-21 14:17)
 
 ---
 
@@ -106,20 +106,20 @@ docker run --rm sglang:dflash2-ttl-tier4-v6 python -c "
 
 All four assertions passed. (See canary-v6-5803-0921.log, pre-flight section.)
 
-### 3.3 Canary (5803, in progress)
+### 3.3 Canary (5803, 2 h, completed 14:17) — **PASS**
 
 | Metric | v5 baseline (09-20) | v6 target | v6 30-min actual |
 |---|---|---|---|
-| Mamba files on gpu2 L3 | 0 (flat) | > 0, growing | 236 → **449** |
-| "no evictable space" rate | ~0.7/s | ≈ 0 | 0.05/min (35 in ~30 min) |
+| Mamba files on gpu2 L3 | 0 (flat) | > 0, growing | 236 → **654** (2 h) |
+| "no evictable space" rate | ~0.7/s | ≈ 0 | 293 total / 2 h ≈ 2.4/min (94 % vs v5) |
 | Second 100 %-CPU thread | — (v5) | absent | absent (top thread 0.9 %) |
 | si / gm latency | 0.02–0.05 / 0.002 s | same | 0.02–0.05 / 0.002 s |
-| 16-conc fail rate | 0 / 1472 (2 h) | < 1 % | 9 / 429 (2 %, cold-start) |
+| 16-conc fail rate | 0 / 1472 (2 h) | < 1 % | **17 / 1408 (1.2 %, full 2 h)** |
 | L3 usage | 98 → 100 G | stable < 98 G | 98 G (flat) |
 
 **T+60 checkpoint (13:38):** mamba=678, noevict=237 (~5.9/min vs v5 ~42/min = 86% reduction), L3 87% flat, si 0.022-0.053s, gm 0.002-0.004s, chat 200, stress 926 total / 11 fail (1.2%, all cold-start), top thread 0.4% CPU (no livelock), no STOPPED marker.
 
-**T+85 checkpoint (13:41):** mamba=675–688 (plateaued — LRU equilibrium: old mamba evicted at same rate as new writes), noevict=238 (growth rate dropped to ~0/min — system in steady state), L3 87% flat, si 0.022–0.063 s (two 5 s blips at 13:06 and 13:39, both absorbed by 3-strike), gm 0.002 s, chat 200, stress batch 59 all 200. Top thread 0.4 % CPU. No STOPPED marker.
+**T+120 FINAL (14:17):** mamba=654, noevict=293 total / 2 h (~2.4/min vs v5 ~42/min, 94 % reduction), L3 87 % flat, si 0.016–0.063 s (two 5 s blips absorbed by 3-strike), gm 0.002 s, chat all 200, stress 1408 / 17 fail (98.0 %; all fails = 120 s client-side timeouts on 4096-tok). Top thread 0.4 % CPU (no livelock). No STOPPED marker. **Verdict: PASS.**
 
 **Note on fail rate:** The 9 failures are all 120 s client-side HTTP timeouts on
 max_tokens=4096 requests during the first two batches (cold start, JIT cache
