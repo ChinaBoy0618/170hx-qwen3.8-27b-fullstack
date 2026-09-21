@@ -25,3 +25,51 @@ RUN set -eux; \
     echo "=== G2: tc-lookahead behavior smoke ==="; \
     python -c "from sglang.srt.parser.reasoning_parser import Qwen3Detector; d = Qwen3Detector(); assert d._tc_lookahead is True and d.tc_block_prefix == '<function=', 'tc-lookahead not active'; print('tc-lookahead OK')"; \
     python -c "from sglang.srt.parser.reasoning_parser import BaseReasoningFormatDetector, DeepSeekR1Detector; d = DeepSeekR1Detector(); assert d._tc_lookahead is False, 'legacy detector must stay legacy'; print('legacy detector untouched OK')"
+
+# ---------------------------------------------------------------------------
+# 0007 v5 热度驱逐器（2026-09-21，整文件 4 件 == 760 现役 v5 树）
+#   根因: v2 补丁把 L3 文件驱逐 `_evict_one_lru_locked` 从 O(1) popitem 改成
+#         O(n) 全索引 min(committed, key=_score) 扫描，_evict_while 每次驱逐后又
+#         重置 attempts_left=len(_lru) → L3 近满(90G 目标/实际 84-85%) + write_back
+#         压力下，每次 reserve() 变多分钟 O(k·n) 扫描风暴 → backup 线程 100% 钉死
+#         → D→H ack 永不完成 → 调度主循环 check_hicache_events 挂死 → 僵尸卡
+#         (HTTP 活 / 引擎死 / get_model_info 快)。v4fh faulthandler 全线程栈实锤。
+#   v5 修复(仅 lru_file_evictor.py 三处 hunk):
+#     1) 全扫描 → 64 窗口有界热度扫描 (itertools.islice(items,64), 跳 _pending_writes,
+#        窗口内取 _score 最小; touch() 把读回移到 MRU 尾 → 热文件不进窗口)
+#     2) _evict_while 加单次调用 256 驱逐硬上限 (远水位差也不能变多分钟风暴)
+#     3) evictions += 1 计数
+#   另: ENV PYTHONFAULTHANDLER=1 — 若再僵死, SIGABRT 调度器直接抓全线程栈(免重建)
+#   A/B 闭环(同 16 并发同 write_back): v2 死~4-5min / v3 7s 硬崩 / v4 死~2min /
+#     tclook-0917 基线存活 / v5 2h canary 1472/1472 fail=0 + 两卡 30min×16 并发 400/400。
+#   详见 docs/v2-v5-zombie-evictor-20260921.md
+#   注: scheduler/unified_radix_cache/unified_tree_core 三件的 v2 hot-L3-backup
+#       特性(主循环 D→H 热节点备份)已废弃 — 生产保持 off(getattr no-op 门控)，
+#       代码保留仅为与 760 v5 镜像字节一致。write_back 本身 A/B 证明无罪, 保留。
+# ---------------------------------------------------------------------------
+COPY sglang/patches/0007-v5-heat-evictor/lru_file_evictor.py \
+     /sgl-workspace/sglang/python/sglang/srt/mem_cache/storage/file/lru_file_evictor.py
+COPY sglang/patches/0007-v5-heat-evictor/scheduler.py \
+     /sgl-workspace/sglang/python/sglang/srt/managers/scheduler.py
+COPY sglang/patches/0007-v5-heat-evictor/unified_radix_cache.py \
+     /sgl-workspace/sglang/python/sglang/srt/mem_cache/unified_radix_cache.py
+COPY sglang/patches/0007-v5-heat-evictor/unified_tree_core.py \
+     /sgl-workspace/sglang/python/sglang/srt/mem_cache/unified_cache/unified_tree_core.py
+
+ENV PYTHONFAULTHANDLER=1
+
+RUN set -eux; \
+    SRT=/sgl-workspace/sglang/python/sglang/srt; \
+    echo "=== G5: v5 4-file md5 gate (== 760 v5 现役树) ==="; \
+    printf '%s\n' \
+      "49c70c70b923fa308dfe10a6157c10b5  $SRT/mem_cache/storage/file/lru_file_evictor.py" \
+      "20bf4b4f25fa23528f30a14483ca749d  $SRT/managers/scheduler.py" \
+      "ec8e75f484f1e8f78e3d1ee0c505c4d9  $SRT/mem_cache/unified_radix_cache.py" \
+      "b4029f453678669868a62e7e811f7d88  $SRT/mem_cache/unified_cache/unified_tree_core.py" \
+      | md5sum -c -; \
+    rm -f $SRT/managers/__pycache__/scheduler.cpython-*.pyc \
+          $SRT/mem_cache/__pycache__/unified_radix_cache.cpython-*.pyc \
+          $SRT/mem_cache/unified_cache/__pycache__/unified_tree_core.cpython-*.pyc \
+          $SRT/mem_cache/storage/file/__pycache__/lru_file_evictor.cpython-*.pyc; \
+    echo "=== G6: v5 evictor behavior smoke ==="; \
+    python -c "import inspect; from sglang.srt.mem_cache.storage.file.lru_file_evictor import LRUFileEvictor; src=inspect.getsource(LRUFileEvictor._evict_one_lru_locked); assert 'islice' in src, 'v5 64-window bounded scan missing'; wsrc=inspect.getsource(LRUFileEvictor._evict_while); assert 'evictions < 256' in wsrc, 'v5 256 per-call cap missing'; print('v5 heat-evictor OK')"

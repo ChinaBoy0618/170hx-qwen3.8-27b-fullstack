@@ -56,7 +56,7 @@
 
 | 组件 | 版本/Tag | 镜像 | 端口 |
 |---|---|---|---|
-| SGLang | v0.5.19 + 补丁 0001-0006 | `sglang:dflash2-fullstack`（760 现役：`sglang:dflash2-ttl-tier4-tclook-0917`） | 5800-5803 |
+| SGLang | v0.5.19 + 补丁 0001-0007 | `sglang:dflash2-fullstack`（760 现役：`sglang:dflash2-ttl-tier4-v5`） | 5800-5803 |
 | 模型 | Qwen3.8-27B AWQ-W4A16 | `/mnt/data/models/eff-awq-w4a16/NVFP4/AWQ-W4A16` | — |
 | DFLASH draft | Qwen3.8-27B-DFlash2, block_size=8 | `/mnt/data/models/Qwen3.8-27B-DFlash2` | — |
 | SMG 网关 | sessionkey-v2 | `sglang-gateway:sessionkey-v2` | 30010 / 29010 |
@@ -92,6 +92,10 @@
 │   ├── 06-start-gateway.sh
 │   ├── 07-start-newapi.sh
 │   ├── 08-start-monitoring.sh
+│   ├── 10-rolling-rollout.sh  # 四卡滚动 rollout（健康门 + SMG 重注册 + 稳定窗）
+│   ├── canary-watchdog.sh     # canary 看门狗（v5b 判据：60s/4-strike/gm>3s）
+│   ├── stress-16c.py          # 16 并发直连引擎压测
+│   ├── monitor-stress.sh      # 压测伴随监控（僵尸早断 + 自旋线程检查）
 │   └── verify/            # 端到端验证脚本
 │       ├── v1-sglang.sh
 │       ├── v2-gateway.sh
@@ -101,10 +105,10 @@
 │
 ├── sglang/
 │   ├── Dockerfile.base    # 基线 + 0001-0005 补丁 + 硬门
-│   ├── Dockerfile.prod    # base + 0006 tc-lookahead
+│   ├── Dockerfile.prod    # base + 0006 tc-lookahead + 0007 v5 驱逐器
 │   ├── launch-awq.sh      # 生产启动脚本（4 卡）
 │   ├── launch-int8.sh     # INT8 回滚版
-│   ├── patches/           # 0001-0005 .patch + 0006 整文件 + generators/
+│   ├── patches/           # 0001-0005 .patch + 0006/0007 整文件 + generators/
 │   ├── overlay/           # bind-mount 3 件（serving_chat, http_server, chat_template）
 │   ├── cc-warm/           # CC 前缀预热 JSON + test 脚本
 │
@@ -132,6 +136,9 @@
 └── models/
     ├── dl-effthink.sh     # 权重下载脚本
     └── SHA256SUMS
+
+docs/
+└── v2-v5-zombie-evictor-20260921.md  # v2→v5 驱逐器活锁根因报告（09-21）
 ```
 
 ---

@@ -18,8 +18,8 @@ NAME="${1:?容器名}"; GPU="${2:?GPU编号}"; PORT="${3:?宿主端口}"; shift 
 MODEL=/mnt/data/models/eff-awq-w4a16/NVFP4/AWQ-W4A16
 DRAFT="${SGLANG_DRAFT_PATH:-/mnt/data/models/Qwen3.8-27B-DFlash2}"
 IMG="${SGLANG_IMG:-sglang:dflash2-ttl-tier4}"
-KEY="${SGLANG_API_KEY:?need to export SGLANG_API_KEY (see .env.example)}"
-CTX="${SGLANG_CTX_LEN:-262144}"; RATIO="${SGLANG_HICACHE_RATIO:-1.0}"; KA_SECS=30; CHUNK="${SGLANG_CHUNK_PREFILL:-8192}"; MEM_FRAC="${SGLANG_MEM_FRACTION:-0.9}"; EXTRA_ARGS="${SGLANG_EXTRA_ARGS:---radix-eviction-policy ttl_watermark --enable-metrics}"; L3_ENABLE="${SGLANG_L3:-0}"; KV_DTYPE="${SGLANG_KV_CACHE_DTYPE:-fp8_e4m3}"; DRAFT_KV="${SGLANG_DRAFT_KV_CACHE_DTYPE:-fp8_e4m3}"; L3_DIR="${SGLANG_L3_DIR:-/mnt/nvme-kv/kv-l3/gpu${GPU%%,*}}"; L3_MAX="${SGLANG_L3_MAX_GB:-100G}"; [ "$L3_ENABLE" != "1" ] && { L3_DIR=""; L3_MAX=""; }; case "$EXTRA_ARGS" in *hicache-storage-backend*) ;; *) [ "$L3_ENABLE" = "1" ] && EXTRA_ARGS="$EXTRA_ARGS --hicache-storage-backend file" ;; esac; KV_DTYPE="${SGLANG_KV_CACHE_DTYPE:-fp8_e4m3}"; DRAFT_KV="${SGLANG_DRAFT_KV_CACHE_DTYPE:-fp8_e4m3}"   # 09-13 L3 on by default; SGLANG_L3=0 to disable (09-14 fix: L3 logic was dead after a mid-line # comment; moved before it)
+KEY="sk-qwen38-GE0CIlgTQsVLj41laThTVb-6wY2khVtT"
+CTX="${SGLANG_CTX_LEN:-262144}"; RATIO="${SGLANG_HICACHE_RATIO:-1.0}"; KA_SECS=30; CHUNK="${SGLANG_CHUNK_PREFILL:-8192}"; MEM_FRAC="${SGLANG_MEM_FRACTION:-0.9}"; EXTRA_ARGS="${SGLANG_EXTRA_ARGS:---radix-eviction-policy ttl_watermark --enable-metrics}"; L3_ENABLE="${SGLANG_L3:-1}"; KV_DTYPE="${SGLANG_KV_CACHE_DTYPE:-fp8_e4m3}"; DRAFT_KV="${SGLANG_DRAFT_KV_CACHE_DTYPE:-fp8_e4m3}"; L3_DIR="${SGLANG_L3_DIR:-/mnt/nvme-model/kv-l3/gpu${GPU%%,*}}"; L3_MAX="${SGLANG_L3_MAX_GB:-100G}"; [ "$L3_ENABLE" != "1" ] && { L3_DIR=""; L3_MAX=""; }; case "$EXTRA_ARGS" in *hicache-storage-backend*) ;; *) [ "$L3_ENABLE" = "1" ] && EXTRA_ARGS="$EXTRA_ARGS --hicache-storage-backend file" ;; esac; KV_DTYPE="${SGLANG_KV_CACHE_DTYPE:-fp8_e4m3}"; DRAFT_KV="${SGLANG_DRAFT_KV_CACHE_DTYPE:-fp8_e4m3}"   # 09-13 L3 on by default; SGLANG_L3=0 to disable (09-14 fix: L3 logic was dead after a mid-line # comment; moved before it)
 : ${KV_DTYPE:=fp8_e4m3}; : ${DRAFT_KV:=fp8_e4m3}   # 09-03 belt-and-suspenders: case/esac bug under set -u
 TKW="${SGLANG_TOK_WORKERS:-4}"   # 09-11: tokenizer frontend workers (CPU); auth patch 已挂载可安全 >1; 回滚: SGLANG_TOK_WORKERS=1
 PATCH_DIR=/mnt/data/sglang-qwen38/keepalive-patch
@@ -120,7 +120,7 @@ docker run -d --name "$NAME" \
     ${MN_OPTS[@]+"${MN_OPTS[@]}"} \
     --reasoning-parser qwen3 --tool-call-parser qwen3_coder \
     --chat-template /chat-template-fix.jinja \
-    --enable-hierarchical-cache --hicache-ratio "$RATIO" --hicache-write-policy write_through --enable-cache-report
+    --enable-hierarchical-cache --hicache-ratio "$RATIO" --hicache-write-policy write_back --enable-cache-report
 # 09-10 guard: docker run 失败(如端口冲突)时容器会停在 Created,
 #   旧检查会 curl 到同端口的其他活容器误报 HEALTHY。先验状态再等健康。
 sleep 2
@@ -134,10 +134,10 @@ echo "[$NAME] launched :$PORT (gpu $GPU, ctx=$CTX, patched), waiting health..."
 ok=0
 for i in $(seq 1 90); do
   sleep 10
-  curl -s -m 3 "http://localhost:$PORT/health" >/dev/null 2>&1 && { ok=1; echo "[$NAME] HEALTHY"; break; }
+  hc=$(curl -s -m 3 -o /dev/null -w "%{http_code}" "http://localhost:$PORT/health" 2>/dev/null); if [ "$hc" = "200" ]; then ok=1; echo "[$NAME] HEALTHY (200)"; break; fi
   docker inspect -f "{{.State.Status}}" "$NAME" 2>/dev/null | grep -q exited && { echo "[$NAME] EXITED!"; docker logs --tail 8 "$NAME" 2>&1 | tail -8; exit 1; }
 done
-[ $ok -eq 1 ] || echo "[$NAME] TIMEOUT"
+[ $ok -eq 1 ] || echo "[$NAME] TIMEOUT (last http=$hc)"
 # 09-13 CC 前缀自暖: 把 CC 桌面端默认前缀(≈24.6K tok)灌进本卡 radix,
 #   新 CC 会话首 turn ≈95% 命中, TTFT 15s→~0.5s。失败不阻断起服; 回滚 WARM_CC=0。
 if [ "${WARM_CC:-1}" = "1" ]; then

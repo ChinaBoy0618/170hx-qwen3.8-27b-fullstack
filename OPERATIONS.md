@@ -115,21 +115,49 @@ bash scripts/verify/v1-sglang.sh
 
 ### 4.2 Cutover（全量切换）
 
+**首选：滚动 rollout 脚本**（09-21 起，含每卡健康门 + SMG 重注册 + 稳定窗，~15min/4卡）：
+
 ```bash
-# 逐卡滚动重启（每卡间隔 ≥ 2 分钟，让 KV 池 drain）
+SGLANG_IMG=<new-tag> bash scripts/10-rolling-rollout.sh
+# 可选: CARDS="0 1 2" 只滚部分卡；5803 等已在位的卡会自动跳过
+```
+
+脚本内建对策（勿手工裸 POST SMG，见 §5.4 竞态）：每卡 = 摘 worker → 重拉 → `/server_info`=200 健康门（≤3min）→ **等 ≥35s 让 autoreg 先补全元数据**（短于 autoreg 30s 周期的裸 POST 会登记出 model=unknown 坏 worker）→ 兜底全元数据 POST → 冒烟 chat → 60s 稳定窗。
+
+<details><summary>手工逐卡（仅脚本不可用时）</summary>
+
+```bash
 for gpu in 0 1 2 3; do
   SGLANG_IMG=<new-tag> bash sglang/launch-awq.sh \
     "qwen38-27b-gpu${gpu}" "$gpu" "$((5800 + gpu))" qwen3.8
   sleep 120
 done
+```
 
-# 全链验证
+</details>
+
+全链验证：
+
+```bash
 bash scripts/verify/v1-sglang.sh
 bash scripts/verify/v2-gateway.sh
 bash scripts/verify/v4-cc-warm.sh
 ```
 
-### 4.3 回滚
+### 4.3 僵尸卡应急（HTTP 活 / 引擎死）
+
+```bash
+# 三查（任一异常即僵尸）:
+curl -s -o /dev/null -w '%{http_code} %{time_total}s\n' -m 5 http://127.0.0.1:5800/server_info     # 须 <1s 200
+curl -s -o /dev/null -w '%{http_code} %{time_total}s\n' -m 5 http://127.0.0.1:5800/get_model_info  # >3s 可疑
+# 线程级: ps -L -o tid,pcpu,comm -p <scheduler_pid>  看是否有第二个 100% 线程
+# v5+ 镜像自带 PYTHONFAULTHANDLER=1: kill -ABRT <scheduler_pid> 直接落全线程栈
+# 复活: SGLANG_IMG=<现役> bash sglang/launch-awq.sh <容器> <gpu> <port> qwen3.8 + SMG 重注册
+```
+
+详见 `docs/v2-v5-zombie-evictor-20260921.md`（含鉴别签名与 v5 前自旋栈）。
+
+### 4.4 回滚
 
 | 组件 | 回滚方法 | 回滚锚 |
 |---|---|---|
@@ -174,6 +202,16 @@ echo '{}' > /mnt/data/sglang-qwen38/gw-data/session-routing.json
 | 单卡过载 | 检查 min_load 是否生效 / 路由表是否锁定 | 清除路由表或手动 re-register |
 | 路由表膨胀 | 检查 TTL 配置 | 缩短 TTL 或手动清理 |
 
+### 5.4 SMG autoreg 竞态（rollout 必读）
+
+`run-router.sh watch` 的 `autoreg_watch` 每 30s 一轮，只做两件事：**补漏**（live 但未注册 → 全元数据 POST）与**删死**（端口不可达 → DELETE），**不修复已存在的坏登记**。
+
+- **坑**：rollout 摘卡后若自己 `POST /workers` 只带 `{"url":...}`（无 model_id/api_key），会抢在 autoreg 之前把 worker 登记成 `model=unknown, is_healthy=False`，SMG 随即把它排除出路由；且 autoreg 不会修复这个坏登记 → 该卡一直坏下去。
+- **对策**（三选一，`10-rolling-rollout.sh` 已实现）：
+  1. 摘卡后**不自己裸 POST**，等 autoreg 下一 30s tick 自动补全元数据（故脚本 SMG 检查窗 ≥35s）；
+  2. 或直接用 `bash gateway/run-router.sh register`（`/v1/models` 实查 model_id + api_key 全元数据 POST）；
+  3. 若已产生坏登记：`DELETE /workers/<id>` 删掉，等 autoreg 下一 tick 重注册。
+
 ---
 
 ## 六、事故索引
@@ -185,3 +223,5 @@ echo '{}' > /mnt/data/sglang-qwen38/gw-data/session-routing.json
 | 09-16 | ratio 1.5 扩容失败 | RAM 硬约束（256 GB 宿主，4 卡 KV 池已满） | 维持 ratio = 1.0 | — |
 | 09-17 | 5803 僵尸卡 | mamba assert 崩后 HTTP 层存活；/get_model_info 探活盲区 + 粘滞 = 12 会话持续 2×600 s 挂死 | 重启 5803（随 tc-lookahead 四卡全滚） | — |
 | 09-17 | thinking 内工具标签泄漏 | Qwen3Detector 在 thinking 阶段看到 tool tag 即关闭推理块 | 0006 tc-lookahead 补丁 | `sglang:dflash2-ttl-tier4`（无 0006） |
+| 09-20 | v2 四卡僵尸卡（无声僵死） | v2 补丁把 L3 驱逐 `_evict_one_lru_locked` 改 O(n) 全索引扫描 + `_evict_while` 每次驱逐重置 `attempts_left` → L3 近满 + write_back 下 `reserve()` 变多分钟 O(k·n) 风暴 → backup 线程 100% 钉死 → D→H ack 不完成 → 调度主循环挂死（v4fh faulthandler 全线程栈实锤） | 0007 v5 驱逐器：64 窗口有界扫描 + 单次 256 驱逐硬上限 + `PYTHONFAULTHANDLER=1`；四卡滚动 rollout v5 | `sglang:dflash2-ttl-tier4-tclook-0917` |
+| 09-21 | rollout 5801/5802 掉出路由 | SMG autoreg 竞态：rollout 裸 POST 抢在 30s autoreg 前，登记 model=unknown/is_healthy=False，autoreg 不修坏登记 | DELETE 坏 worker → autoreg 下一 tick 全元数据重注册；`10-rolling-rollout.sh` 内建 ≥35s 等待 + 全元数据兜底 | — |

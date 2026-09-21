@@ -14,10 +14,10 @@ echo "=== [01] Building SGLang base image (v0.5.19 + patches 0001-0005) ==="
 docker build -f sglang/Dockerfile.base -t "$SGLANG_BASE_TAG" .
 echo "[01] Base image built: $SGLANG_BASE_TAG"
 
-echo "=== [01] Building SGLang prod image (base + 0006 tc-lookahead) ==="
+echo "=== [01] Building SGLang prod image (base + 0006 tc-lookahead + 0007 v5 evictor) ==="
 docker build -f sglang/Dockerfile.prod -t "$SGLANG_PROD_TAG" .
 echo "[01] Prod image built: $SGLANG_PROD_TAG"
 
 echo "=== [01] Tag as production alias (matches 760 live tag) ==="
-docker tag "$SGLANG_PROD_TAG" "sglang:dflash2-ttl-tier4-tclook-0917"
-echo "[01] DONE — image ready: sglang:dflash2-ttl-tier4-tclook-0917"
+docker tag "$SGLANG_PROD_TAG" "sglang:dflash2-ttl-tier4-v5"
+echo "[01] DONE — image ready: sglang:dflash2-ttl-tier4-v5"

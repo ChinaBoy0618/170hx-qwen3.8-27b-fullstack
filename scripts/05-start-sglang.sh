@@ -13,7 +13,7 @@ source "${REPO_ROOT}/.env" 2>/dev/null || echo "[05] WARNING: .env not found, re
 : "${SGLANG_MODEL_PATH:?SGLANG_MODEL_PATH not set}"
 : "${SGLANG_DRAFT_PATH:?SGLANG_DRAFT_PATH not set}"
 
-SGLANG_IMG="${SGLANG_IMG:-sglang:dflash2-ttl-tier4-tclook-0917}"
+SGLANG_IMG="${SGLANG_IMG:-sglang:dflash2-ttl-tier4-v5}"
 BASE_PORT="${SGLANG_BASE_PORT:-5800}"
 SGLANG_CTX_LEN="${SGLANG_CTX_LEN:-262144}"
 SGLANG_HICACHE_RATIO="${SGLANG_HICACHE_RATIO:-1.0}"
