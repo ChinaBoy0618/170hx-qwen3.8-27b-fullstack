@@ -56,7 +56,7 @@
 
 | 组件 | 版本/Tag | 镜像 | 端口 |
 |---|---|---|---|
-| SGLang | v0.5.19 + 补丁 0001-0007 | `sglang:dflash2-fullstack`（760 现役：`sglang:dflash2-ttl-tier4-v5`） | 5800-5803 |
+| SGLang | v0.5.19 + 补丁 0001-0008 | `sglang:dflash2-fullstack`（760 现役：`sglang:dflash2-ttl-tier4-v6`） | 5800-5803 |
 | 模型 | Qwen3.8-27B AWQ-W4A16 | `/mnt/data/models/eff-awq-w4a16/NVFP4/AWQ-W4A16` | — |
 | DFLASH draft | Qwen3.8-27B-DFlash2, block_size=8 | `/mnt/data/models/Qwen3.8-27B-DFlash2` | — |
 | SMG 网关 | sessionkey-v2 | `sglang-gateway:sessionkey-v2` | 30010 / 29010 |

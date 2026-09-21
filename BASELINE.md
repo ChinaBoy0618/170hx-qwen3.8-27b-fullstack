@@ -11,6 +11,7 @@
 |---|---|---|---|---|
 | SGLang 基线 | `lmsysorg/sglang:v0.5.19` | `e6238090791a938ab86dd21a9a6394192dad15237e815df557cf83524d54b813` | — | Docker Hub |
 | SGLang 760 现役 | `sglang:dflash2-ttl-tier4-v5` | `f820ae0c69f63b7fdb0905dccc609a1b8a4ed076e91af7014e6562a3a2449a17` | 33.9 GB | `Dockerfile.base` + `Dockerfile.prod`（含 0007 v5 驱逐器） |
+| SGLang 760 v6（canary） | `sglang:dflash2-ttl-tier4-v6` | `70a49a84a26f6cbb8862f31e1ff610a10e13dbe3b098f3d15e847e67686af300` | 36.4 GB | `Dockerfile.base` + `Dockerfile.prod`（含 0007 + 0008 v6 缩放驱逐器） |
 | SGLang 回滚锚 | `sglang:dflash2-ttl-tier4-tclook-0917` | `fefc9a3d6da63eb2cf745e5513f7b5b8382881ec90f755786656fd6f204d8077` | 36.4 GB | `Dockerfile.base` + `Dockerfile.prod`（v5 前版，O(1) 头弹驱逐器） |
 | SMG 网关 | `sglang-gateway:sessionkey-v2` | `fefc9a3d6da63eb2cf745e5513f7b5b8382881ec90f755786656fd6f204d8077`* | 44.1 GB | `gateway/` 整树 + cargo/maturin |
 | new-api | `new-api:fixtoolidx-0831-full` | `aab1b94f18fa7110b3e7ba7165354479891e4cedf10821cdfcdc62bb51a1fd74` | 213 MB | `new-api/Dockerfile` |
@@ -39,6 +40,7 @@
 | `sglang/patches/0007-v5-heat-evictor/scheduler.py` | `e330de1a8d455bf5a9c8faf3c0a485d492773845ee4f840be8b918355fd162c4` |
 | `sglang/patches/0007-v5-heat-evictor/unified_radix_cache.py` | `a0cf59cbbbb2744b6bc43ea83fc1ef4388c1524b959b7cd6c7ce3d8fb6e43f06` |
 | `sglang/patches/0007-v5-heat-evictor/unified_tree_core.py` | `f325b80dc1470e017afe5d18658f345c4a74b89ccda637465f40c91d66c8d74e` |
+| `sglang/patches/0008-v6-scaled-evictor/lru_file_evictor.py` | `c7e2ed308c8e9d6afc6f99916b22b0e84ee6a047aeb739b484f8dc1fa997f138` |
 
 ### 2.2 SGLang overlay（bind-mount 件）
 
@@ -94,7 +96,9 @@
 | G1 (prod) | `Dockerfile.prod` | reasoning_parser.py md5 == 760 活体 (`d2d352a4ceb1bafb4feecd3d905f50dc`) |
 | G2 (prod) | `Dockerfile.prod` | Qwen3Detector `_tc_lookahead` 行为验证 |
 | G5 (prod) | `Dockerfile.prod` | 0007 四文件 md5 == 760 v5 现役树（lru_file_evictor / scheduler / unified_radix_cache / unified_tree_core） |
-| G6 (prod) | `Dockerfile.prod` | v5 驱逐器行为冒烟（`islice` 64 窗口 + `evictions < 256` 硬上限） |
+| G6 (prod) | `Dockerfile.prod` | v5 驱逐器行为冒烟（`islice` 64 窗口 + `evictions < cap` 有界上限） |
+| G7 (prod) | `Dockerfile.prod` | 0008 `lru_file_evictor.py` md5 == 760 v6 构建树（`013751d9…`） |
+| G8 (prod) | `Dockerfile.prod` | v6 驱逐器行为冒烟（`_eviction_cap_for` 存在 + `islice` 有界扫描 + `16384` 硬顶 + 参数化 cap） |
 
 ---
 

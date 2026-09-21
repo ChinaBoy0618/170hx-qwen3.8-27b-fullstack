@@ -72,4 +72,40 @@ RUN set -eux; \
           $SRT/mem_cache/unified_cache/__pycache__/unified_tree_core.cpython-*.pyc \
           $SRT/mem_cache/storage/file/__pycache__/lru_file_evictor.cpython-*.pyc; \
     echo "=== G6: v5 evictor behavior smoke ==="; \
-    python -c "import inspect; from sglang.srt.mem_cache.storage.file.lru_file_evictor import LRUFileEvictor; src=inspect.getsource(LRUFileEvictor._evict_one_lru_locked); assert 'islice' in src, 'v5 64-window bounded scan missing'; wsrc=inspect.getsource(LRUFileEvictor._evict_while); assert 'evictions < 256' in wsrc, 'v5 256 per-call cap missing'; print('v5 heat-evictor OK')"
+    python -c "import inspect; from sglang.srt.mem_cache.storage.file.lru_file_evictor import LRUFileEvictor; src=inspect.getsource(LRUFileEvictor._evict_one_lru_locked); assert 'islice' in src, 'v5 64-window bounded scan missing'; wsrc=inspect.getsource(LRUFileEvictor._evict_while); assert 'evictions < 256' in wsrc, 'v5 256 per-call cap missing'; print('v5 heat-evictor base OK')"
+
+# ---------------------------------------------------------------------------
+# 0008 v6 大块缩放驱逐预算（2026-09-21，仅 lru_file_evictor.py 整文件替换）
+#
+#   v5 的 256 次驱逐硬上限对 ~78 MB mamba 大块不足:
+#     256 × ~40 KB ≈ 10 MB ≪ 78 MB → L3 近满时 mamba 备份全部 "not caching"
+#
+#   v6 修复:
+#     1) _eviction_cap_for(needed_bytes) 按请求大小缩放预算:
+#        小写(≤1 MB)→256(与 v5 一致), 大写→min(16384, needed/avg×1.5+8)
+#     2) 保持 64 窗口 islice 有界扫描 — 不回归 v2 O(n) 活锁
+#     3) 单次 reserve 仍可驱逐足够文件释放 78 MB 空间
+#
+#   2h canary（5803, 09-21）：16 并发, mamba 236→314+, 无第二自旋线程,
+#   noevict 0.6/min vs v5 ~2520/h（~97% 削减）
+#
+#   回滚锚: sglang:dflash2-ttl-tier4-v5
+# ---------------------------------------------------------------------------
+COPY sglang/patches/0008-v6-scaled-evictor/lru_file_evictor.py \
+     /sgl-workspace/sglang/python/sglang/srt/mem_cache/storage/file/lru_file_evictor.py
+
+RUN set -eux; \
+    SRT=/sgl-workspace/sglang/python/sglang/srt; \
+    echo "=== G7: v6 evictor md5 gate ==="; \
+    echo "013751d97a0627c52bdbdc4dd63417f2  $SRT/mem_cache/storage/file/lru_file_evictor.py" | md5sum -c -; \
+    rm -f $SRT/mem_cache/storage/file/__pycache__/lru_file_evictor.cpython-*.pyc; \
+    echo "=== G8: v6 evictor behavior smoke ==="; \
+    python -c "\
+import inspect; \
+from sglang.srt.mem_cache.storage.file.lru_file_evictor import LRUFileEvictor; \
+src = inspect.getsource(LRUFileEvictor); \
+assert '_eviction_cap_for' in src, 'v6 _eviction_cap_for method missing'; \
+assert 'islice' in src, '64-window bounded scan missing'; \
+assert '16384' in src, 'hard cap 16384 missing'; \
+assert 'evictions < cap' in src, 'parameterized cap check missing'; \
+print('v6 scaled-evictor OK')"

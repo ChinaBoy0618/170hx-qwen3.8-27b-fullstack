@@ -155,7 +155,7 @@ curl -s -o /dev/null -w '%{http_code} %{time_total}s\n' -m 5 http://127.0.0.1:58
 # 复活: SGLANG_IMG=<现役> bash sglang/launch-awq.sh <容器> <gpu> <port> qwen3.8 + SMG 重注册
 ```
 
-详见 `docs/v2-v5-zombie-evictor-20260921.md`（含鉴别签名与 v5 前自旋栈）。
+详见 `docs/v2-v5-zombie-evictor-20260921.md`（含鉴别签名与 v5 前自旋栈）。v6 保留 `PYTHONFAULTHANDLER=1`，排查方法相同。v6 设计文档见 `docs/v6-scaled-evictor-20260921.md`。
 
 ### 4.4 回滚
 
@@ -225,3 +225,4 @@ echo '{}' > /mnt/data/sglang-qwen38/gw-data/session-routing.json
 | 09-17 | thinking 内工具标签泄漏 | Qwen3Detector 在 thinking 阶段看到 tool tag 即关闭推理块 | 0006 tc-lookahead 补丁 | `sglang:dflash2-ttl-tier4`（无 0006） |
 | 09-20 | v2 四卡僵尸卡（无声僵死） | v2 补丁把 L3 驱逐 `_evict_one_lru_locked` 改 O(n) 全索引扫描 + `_evict_while` 每次驱逐重置 `attempts_left` → L3 近满 + write_back 下 `reserve()` 变多分钟 O(k·n) 风暴 → backup 线程 100% 钉死 → D→H ack 不完成 → 调度主循环挂死（v4fh faulthandler 全线程栈实锤） | 0007 v5 驱逐器：64 窗口有界扫描 + 单次 256 驱逐硬上限 + `PYTHONFAULTHANDLER=1`；四卡滚动 rollout v5 | `sglang:dflash2-ttl-tier4-tclook-0917` |
 | 09-21 | rollout 5801/5802 掉出路由 | SMG autoreg 竞态：rollout 裸 POST 抢在 30s autoreg 前，登记 model=unknown/is_healthy=False，autoreg 不修坏登记 | DELETE 坏 worker → autoreg 下一 tick 全元数据重注册；`10-rolling-rollout.sh` 内建 ≥35s 等待 + 全元数据兜底 | — |
+| 09-21 (v6) | v5 驱逐器 256 上限致 mamba 78MB 大块在 L3 近满时全部 `not caching` | 固定 256 次驱逐 × ~40KB 碎片 ≈ 10 MB ≪ 78 MB mamba 块，L3 98/100G 时无法释放足够空间 | 0008 v6：`_eviction_cap_for(needed_bytes)` 按请求大小缩放（小写保持 256，大写 min(16384, needed/avg×1.5+8)），保留 64 窗口 islice 有界扫描；2h canary mamba 236→314+，noevict ~0.6/min（v5 为 ~2520/h） | `sglang:dflash2-ttl-tier4-v5`（v5 驱逐器镜像） |

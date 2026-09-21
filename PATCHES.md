@@ -5,12 +5,13 @@
 
 ---
 
-## 一、SGLang 补丁链（0001-0007）
+## 一、SGLang 补丁链（0001-0008）
 
 ### 应用方式
 - **0001-0005**：在 `Dockerfile.base` 中 `patch -p1` 按序应用，前缀 `a/` `b/`
 - **0006**：整文件替换 `reasoning_parser.py`（非 diff），在 `Dockerfile.prod` 中 COPY
 - **0007**：整文件替换 4 文件（lru_file_evictor / scheduler / unified_radix_cache / unified_tree_core，非 diff），在 `Dockerfile.prod` 中 COPY + 烘 `PYTHONFAULTHANDLER=1`
+- **0008**：整文件替换 `lru_file_evictor.py`（单文件，非 diff），在 `Dockerfile.prod` 中 COPY（覆盖 0007 的 v5 驱逐器 → v6）
 
 ### 补丁详情
 
@@ -23,6 +24,7 @@
 | 0005 | `0005-ttl-tier4-pin.patch` | 新增 `POST /admin/pin_prefix` 端点，将 CC 前缀钉住不驱逐（evictable 20191→63） | `generators/_ttl_tier4_pin_0914.py` |
 | 0006 | `0006-tc-lookahead/reasoning_parser.py` | 整文件替换：Qwen3Detector 开启 `_tc_lookahead=True` + `tc_block_prefix="<function="`，修复 thinking 内工具标签泄漏（09-17） | `generators/patch_tc_lookahead.py`（7 锚点，幂等校验，失配 exit 1） |
 | 0007 | `0007-v5-heat-evictor/`（4 整文件） | 修复 v2 补丁 O(n) 驱逐扫描活锁→僵尸卡：`lru_file_evictor.py` 改 64 窗口有界热度扫描 + 单次 256 驱逐硬上限；另 3 文件（scheduler/unified_radix_cache/unified_tree_core）承载 v2 热度特性，其 **hot L3 backup 特性已废弃**（生产 off，getattr no-op 门控），保留仅为镜像字节一致（09-21，见 `docs/v2-v5-zombie-evictor-20260921.md`） | 无生成器（整文件取自 760 v5 现役树，G5 md5 门锁定） |
+| 0008 | `0008-v6-scaled-evictor/lru_file_evictor.py`（1 整文件） | v5 的 256 次驱逐硬上限对 ~78 MB mamba 大块不足（256×~40KB≈10MB≪78MB）→ L3 近满时 mamba 备份全部 `not caching`。v6 加 `_eviction_cap_for(needed_bytes)`：小写(≤1MB)保持 256，大写按 `needed/avg×1.5+8` 缩放、硬顶 16384；**仍保持 64 窗口 islice 有界扫描**（不回归 v2 O(n) 活锁）。2h canary（5803）mamba 236→314+、noevict 0.6/min（v5 为 ~2520/h，~97% 削减）、无第二自旋线程 | 无生成器（整文件取自 760 v6 构建树，G7 md5 门锁定） |
 
 ### 硬门校验（Dockerfile 内）
 - **G1**：11 个基线文件 pristine 0.5.19 md5 全等（防止镜像被篡改）
@@ -30,7 +32,9 @@
 - **G3**：补丁后 11 文件 md5 与 760 生产树一致
 - **G4**：import 冒烟（`DFlash2DraftModel` / `CandidateSelector` / `TTLWatermarkStrategy` / `flashinfer>=0.6.18`）
 - **G5**（prod）：0007 四文件 md5 == 760 v5 现役树（`49c70c70…` / `20bf4b4f…` / `ec8e75f4…` / `b4029f45…`）
-- **G6**（prod）：v5 驱逐器行为冒烟（`_evict_one_lru_locked` 含 `islice` 64 窗口；`_evict_while` 含 `evictions < 256` 硬上限）
+- **G6**（prod）：v5 驱逐器行为冒烟（`_evict_one_lru_locked` 含 `islice` 64 窗口；`_evict_while` 含 `evictions < cap` 有界上限）
+- **G7**（prod）：0008 `lru_file_evictor.py` md5 == 760 v6 构建树（`013751d97a0627c52bdbdc4dd63417f2`）
+- **G8**（prod）：v6 驱逐器行为冒烟（`_eviction_cap_for` 存在；`islice` 64 窗口保留；`16384` 硬顶存在；`evictions < cap` 参数化）
 
 ### 再生成方法
 ```bash
@@ -44,7 +48,7 @@ python3 _ttl_tier4_pin_0914.py <pristine-tree>
 python3 patch_tc_lookahead.py <pristine-tree>
 ```
 
-> **0007 无生成器**：4 整文件直接取自 760 v5 现役树（`/mnt/data/sglang-qwen38/build-tier4-v5-0920/`），不进入上述再生成链；正确性由 G5 md5 门 + G6 行为冒烟锁定（09-21）。
+> **0007/0008 无生成器**：整文件直接取自 760 现役树（0007 取 v5 树 `/mnt/data/sglang-qwen38/build-tier4-v5-0920/`，0008 取 v6 树 `/mnt/data/sglang-qwen38/build-tier4-v6-0921/`，09-21），不进入上述再生成链；正确性由 G5/G7 md5 门 + G6/G8 行为冒烟锁定。0008 仅改 `lru_file_evictor.py` 单文件（覆盖 0007 的 v5 驱逐器）。
 
 ---
 

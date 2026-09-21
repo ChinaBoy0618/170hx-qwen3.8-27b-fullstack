@@ -73,8 +73,8 @@ bash scripts/01-build-sglang.sh
 
 **产物**：
 - `sglang:dflash2-fullstack-base`（v0.5.19 + 0001-0005 补丁）
-- `sglang:dflash2-fullstack`（+ 0006 tc-lookahead + 0007 v5 驱逐器）
-- 同步 tag：`sglang:dflash2-ttl-tier4-v5`（760 现役）
+- `sglang:dflash2-fullstack`（+ 0006 tc-lookahead + 0007 v5 驱逐器 + 0008 v6 缩放驱逐预算）
+- 同步 tag：`sglang:dflash2-ttl-tier4-v6`（760 现役）
 
 **硬门（Dockerfile 内自动执行）**：
 - G1: 11 个基线文件 md5 与 v0.5.19 pristine 一致
@@ -82,7 +82,9 @@ bash scripts/01-build-sglang.sh
 - G3: 补丁后 11 文件 md5 与 760 生产树一致
 - G4: import 冒烟（DFlash2 / CandidateSelector / TTLWatermarkStrategy / flashinfer≥0.6.18）
 - G5 (prod): 0007 四文件 md5 == 760 v5 现役树（lru_file_evictor / scheduler / unified_radix_cache / unified_tree_core）
-- G6 (prod): v5 驱逐器行为冒烟（`islice` 64 窗口 + `evictions < 256` 硬上限）
+- G6 (prod): v5 驱逐器行为冒烟（`islice` 64 窗口 + `evictions < cap` 有界上限）
+- G7 (prod): 0008 `lru_file_evictor.py` md5 == 760 v6 构建树（`013751d9…`）
+- G8 (prod): v6 驱逐器行为冒烟（`_eviction_cap_for` + `islice` 有界扫描 + 16384 硬顶 + 参数化 cap）
 
 ### 2.2 SMG 网关镜像
 
@@ -196,8 +198,10 @@ v1 → v2 → v3 → v4 → v5  (逐层验证)
 
 ## 六、回滚
 
-| 组件 | 回滚方法 |
-|---|---|
-| SGLang | `SGLANG_IMG=sglang:dflash2-ttl-tier4-tclook-0917 bash scripts/05-start-sglang.sh`（v5 前锚点，O(1) 头弹驱逐器） |
-| SMG 网关 | 见 `run-router.sh.bak-cacheaware-0917`（已含在 gateway/ 目录） |
-| new-api | 重建 `new-api:fixtoolidx-0831`（无 0831-exempt 版本） |
+| 组件 | 回滚方法 | 回滚锚 |
+|---|---|---|
+| SGLang | `SGLANG_IMG=sglang:dflash2-ttl-tier4-v5 bash scripts/05-start-sglang.sh`（v5 驱逐器，功能降级：mamba 不缓存但稳定） | `sglang:dflash2-ttl-tier4-v5` |
+| SGLang (紧急) | `SGLANG_IMG=sglang:dflash2-ttl-tier4-tclook-0917 bash scripts/05-start-sglang.sh`（v5 前锚点，O(1) 头弹驱逐器） | `sglang:dflash2-ttl-tier4-tclook-0917` |
+| SMG 网关 | `bash gateway/run-router.sh restart`（恢复旧配置） | `.bak-cacheaware-0917` |
+| new-api | 重建旧版本镜像并启动 | 旧镜像 tag |
+| 参数回滚 | 改 `.env` 对应变量 → 重启对应组件 | 变更记录见 `TUNING.md` |
